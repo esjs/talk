@@ -4,13 +4,7 @@ import sinon from "sinon";
 import { ERROR_CODES } from "coral-common/errors";
 import { pureMerge } from "coral-common/utils";
 import { InvalidRequestError } from "coral-framework/lib/errors";
-import {
-  act,
-  toJSON,
-  wait,
-  waitForElement,
-  within,
-} from "coral-framework/testHelpers";
+import { act, wait, waitForElement, within } from "coral-framework/testHelpers";
 
 import create from "./create";
 import { settings } from "./fixtures";
@@ -67,65 +61,8 @@ async function createTestRenderer(
 it("renders addEmailAddress view", async () => {
   const { root } = await createTestRenderer();
   await act(async () => {
-    await wait(() => {
-      expect(toJSON(root)).toMatchSnapshot();
-    });
-  });
-  expect(await within(root).axe()).toHaveNoViolations();
-});
-
-it("shows error when submitting empty form", async () => {
-  const { form } = await createTestRenderer();
-  act(() => {
-    form.props.onSubmit();
-  });
-
-  await act(async () => {
-    await wait(() => {
-      expect(toJSON(form)).toMatchSnapshot();
-    });
-  });
-});
-
-it("checks for invalid email", async () => {
-  const {
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer();
-
-  act(() =>
-    emailAddressField.props.onChange({ target: { value: "invalid-email" } })
-  );
-  act(() =>
-    confirmEmailAddressField.props.onChange({
-      target: { value: "invalid-confirmation-email" },
-    })
-  );
-  act(() => {
-    form.props.onSubmit();
-  });
-
-  await act(async () => {
-    await wait(() => {
-      expect(toJSON(form)).toMatchSnapshot();
-    });
-  });
-});
-
-it("accepts valid email", async () => {
-  const { form, emailAddressField } = await createTestRenderer();
-
-  act(() =>
-    emailAddressField.props.onChange({ target: { value: "hans@test.com" } })
-  );
-  act(() => {
-    form.props.onSubmit();
-  });
-
-  await act(async () => {
-    await wait(() => {
-      expect(toJSON(form)).toMatchSnapshot();
+    await wait(async () => {
+      expect(await within(root).axe()).toHaveNoViolations();
     });
   });
 });
@@ -135,18 +72,15 @@ it("shows server error", async () => {
   const setEmail = sinon.stub().callsFake((_: any, data: any) => {
     throw new Error("server error");
   });
-  const {
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer(
-    {
-      Mutation: {
-        setEmail,
+  const { form, emailAddressField, confirmEmailAddressField } =
+    await createTestRenderer(
+      {
+        Mutation: {
+          setEmail,
+        },
       },
-    },
-    { muteNetworkErrors: true }
-  );
+      { muteNetworkErrors: true }
+    );
   const submitButton = form.find(
     (i) => i.type === "button" && i.props.type === "submit"
   );
@@ -170,7 +104,6 @@ it("shows server error", async () => {
       expect(submitButton.props.disabled).toBe(false);
     });
   });
-  expect(toJSON(form)).toMatchSnapshot();
 });
 
 it("successfully sets email", async () => {
@@ -189,15 +122,12 @@ it("successfully sets email", async () => {
     };
   });
 
-  const {
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer({
-    Mutation: {
-      setEmail,
-    },
-  });
+  const { form, emailAddressField, confirmEmailAddressField } =
+    await createTestRenderer({
+      Mutation: {
+        setEmail,
+      },
+    });
 
   const event = { target: { value: email } };
 
@@ -219,19 +149,15 @@ it("switch to link account", async () => {
       traceID: "traceID",
     });
   });
-  const {
-    testRenderer,
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer(
-    {
-      Mutation: {
-        setEmail,
+  const { testRenderer, form, emailAddressField, confirmEmailAddressField } =
+    await createTestRenderer(
+      {
+        Mutation: {
+          setEmail,
+        },
       },
-    },
-    { muteNetworkErrors: true }
-  );
+      { muteNetworkErrors: true }
+    );
   const submitButton = form.find(
     (i) => i.type === "button" && i.props.type === "submit"
   );

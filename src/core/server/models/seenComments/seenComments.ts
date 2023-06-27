@@ -1,6 +1,7 @@
 import { v4 as uuid } from "uuid";
 
 import { dotize } from "coral-common/utils/dotize";
+import { DataCache } from "coral-server/data/cache/dataCache";
 import { MongoContext } from "coral-server/data/context";
 import { FindSeenCommentsInput } from "coral-server/graph/loaders/SeenComments";
 import SeenCommentsCollection from "coral-server/graph/seenCommentsCollection";
@@ -58,7 +59,7 @@ export async function findSeenComments(
   return result ?? null;
 }
 
-function reduceCommentIDs(commentIDs: string[], now: Date) {
+export function reduceCommentIDs(commentIDs: string[], now: Date) {
   const comments = commentIDs.reduce<Record<string, Date>>((acc, commentID) => {
     acc[commentID] = now;
     return acc;
@@ -71,6 +72,7 @@ function reduceCommentIDs(commentIDs: string[], now: Date) {
  * Marks multiple comments as seen for a user.
  *
  * @param mongo is the mongo context used to mark the comments as seen.
+ * @param cache is the data cache used to load cached comments from redis.
  * @param tenantID is the tenant to filter by for this marking operation.
  * @param storyID is the story ID we filter by for this marking operation.
  * @param userID is the user ID for which we want to mark the comments for.
@@ -80,13 +82,33 @@ function reduceCommentIDs(commentIDs: string[], now: Date) {
  */
 export async function markSeenComments(
   mongo: MongoContext,
+  cache: DataCache,
   tenantID: string,
   storyID: string,
   userID: string,
   commentIDs: string[],
-  now: Date
+  now: Date,
+  markAllAsSeen?: boolean
 ) {
-  const comments = reduceCommentIDs(commentIDs, now);
+  const cacheAvailable = await cache.available(tenantID);
+
+  let comments;
+  if (markAllAsSeen && cacheAvailable) {
+    const markAllCommentIDs = (
+      await cache.comments.findAllCommentsForStory(tenantID, storyID, false)
+    ).map((comment) => comment.id);
+    comments = reduceCommentIDs(markAllCommentIDs, now);
+  } else if (markAllAsSeen) {
+    const markAllCommentIDs = (
+      await mongo
+        .comments()
+        .find({ tenantID, storyID }, { projection: { id: 1 } })
+        .toArray()
+    ).map((comment) => comment.id);
+    comments = reduceCommentIDs(markAllCommentIDs, now);
+  } else {
+    comments = reduceCommentIDs(commentIDs, now);
+  }
 
   const result = await mongo.seenComments().findOneAndUpdate(
     {

@@ -1,3 +1,4 @@
+import { DataCache } from "coral-server/data/cache/dataCache";
 import { MongoContext } from "coral-server/data/context";
 import { FindSeenCommentsInput } from "coral-server/graph/loaders/SeenComments";
 import {
@@ -16,11 +17,22 @@ export async function find(
 
 export async function markSeen(
   mongo: MongoContext,
+  cache: DataCache,
   tenantID: string,
   storyID: string,
   userID: string,
   commentIDs: string[],
-  now: Date
+  now: Date,
+  markAllAsSeen?: boolean
 ) {
-  await markSeenComments(mongo, tenantID, storyID, userID, commentIDs, now);
+  await markSeenComments(
+    mongo,
+    cache,
+    tenantID,
+    storyID,
+    userID,
+    commentIDs,
+    now,
+    markAllAsSeen
+  );
 }

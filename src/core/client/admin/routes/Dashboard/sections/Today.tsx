@@ -36,14 +36,13 @@ interface Props {
 }
 
 const TodayTotals: FunctionComponent<Props> = ({ siteID, lastUpdated }) => {
-  const [{ archivingEnabled, autoArchiveOlderThanMs }] = useLocal<
-    TodayTotalsLocal
-  >(graphql`
-    fragment TodayTotalsLocal on Local {
-      archivingEnabled
-      autoArchiveOlderThanMs
-    }
-  `);
+  const [{ archivingEnabled, autoArchiveOlderThanMs }] =
+    useLocal<TodayTotalsLocal>(graphql`
+      fragment TodayTotalsLocal on Local {
+        archivingEnabled
+        autoArchiveOlderThanMs
+      }
+    `);
 
   const seconds = Math.floor(autoArchiveOlderThanMs / 1000);
   const { scaled, unit } = reduceSeconds(seconds, [
@@ -79,8 +78,7 @@ const TodayTotals: FunctionComponent<Props> = ({ siteID, lastUpdated }) => {
             {archivingEnabled ? (
               <Localized
                 id="dashboard-alltime-new-comments-archiveEnabled"
-                $value={scaled}
-                $unit={unit}
+                vars={{ value: scaled, unit }}
               >
                 <span>
                   {scaled} {unit} total
@@ -121,8 +119,7 @@ const TodayTotals: FunctionComponent<Props> = ({ siteID, lastUpdated }) => {
             {archivingEnabled ? (
               <Localized
                 id="dashboard-alltime-rejections-archiveEnabled"
-                $value={scaled}
-                $unit={unit}
+                vars={{ value: scaled, unit }}
               >
                 <span>
                   {scaled} {unit} average
@@ -140,16 +137,15 @@ const TodayTotals: FunctionComponent<Props> = ({ siteID, lastUpdated }) => {
           loading={loading || totalLoading}
         >
           <TodayValue value={today?.comments.staff.toString()}>
-            <Localized id="dashboard-today-staff-comments">
-              Staff comments
+            <Localized id="dashboard-today-staffPlus-comments">
+              Staff+ comments
             </Localized>
           </TodayValue>
           <TodayCompareValue value={total?.comments.staff.toString()}>
             {archivingEnabled ? (
               <Localized
                 id="dashboard-alltime-staff-comments-archiveEnabled"
-                $value={scaled}
-                $unit={unit}
+                vars={{ value: scaled, unit }}
               >
                 <span>
                   {scaled} {unit} total

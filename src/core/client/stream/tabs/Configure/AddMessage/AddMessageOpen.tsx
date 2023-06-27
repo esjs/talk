@@ -24,6 +24,7 @@ interface Props {
   storySettings: any;
   onCancel: () => void;
   onRemove: () => void;
+  autoFocus?: boolean;
 }
 
 const AddMessageOpen: FunctionComponent<Props> = ({
@@ -31,6 +32,7 @@ const AddMessageOpen: FunctionComponent<Props> = ({
   storySettings,
   onCancel,
   onRemove,
+  autoFocus,
 }) => {
   const updateMutation = useMutation(UpdateMessageBoxMutation);
 
@@ -118,7 +120,8 @@ const AddMessageOpen: FunctionComponent<Props> = ({
             id="message-box-form"
             data-testid="configure-addMessage-form"
           >
-            <MessageBoxConfig />
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <MessageBoxConfig autoFocus={autoFocus} />
             {storySettings.messageBox.content ? (
               <div className={styles.actions}>
                 <Button
@@ -166,19 +169,21 @@ const AddMessageOpen: FunctionComponent<Props> = ({
                 >
                   <Localized id="configure-addMessage-cancel">Cancel</Localized>
                 </Button>
-                <Button
-                  className={CLASSES.configureCommentStream.applyButton}
-                  color="primary"
-                  variant="filled"
-                  type="submit"
-                  disabled={submitting || pristine}
-                  upperCase
-                  data-testid="configure-addMessage-submitAdd"
-                >
-                  <Localized id="configure-addMessage-submitAdd">
+                <Localized id="configure-addMessage-submitAdd">
+                  <Button
+                    className={CLASSES.configureCommentStream.applyButton}
+                    color="primary"
+                    variant="filled"
+                    type="submit"
+                    disabled={submitting || pristine}
+                    upperCase
+                    data-testid="configure-addMessage-submitAdd"
+                    aria-label="Add message"
+                  >
                     Add message
-                  </Localized>
-                </Button>
+                  </Button>
+                </Localized>
+
                 {renderSuccess}
               </div>
             )}

@@ -6,6 +6,7 @@ export const ERROR_TRANSLATIONS: Record<ERROR_CODES, string> = {
   COMMENT_NOT_FOUND: "error-commentNotFound",
   COMMENT_REVISION_NOT_FOUND: "error-commentRevisionNotFound",
   PARENT_COMMENT_REJECTED: "error-parentCommentRejected",
+  ANCESTOR_REJECTED: "error-ancestorRejected",
   COMMENTING_DISABLED: "error-commentingDisabled",
   DUPLICATE_EMAIL: "error-duplicateEmail",
   DUPLICATE_EMAIL_DOMAIN: "error-duplicateEmailDomain",
@@ -16,6 +17,7 @@ export const ERROR_TRANSLATIONS: Record<ERROR_CODES, string> = {
   EMAIL_EXCEEDS_MAX_LENGTH: "error-emailExceedsMaxLength",
   EMAIL_INVALID_FORMAT: "error-emailInvalidFormat",
   EMAIL_NOT_SET: "error-emailNotSet",
+  EMAIL_DOMAIN_PROTECTED: "error-emailDomainProtected",
   INTERNAL_ERROR: "error-internalError",
   LOCAL_PROFILE_ALREADY_SET: "error-localProfileAlreadySet",
   LOCAL_PROFILE_NOT_SET: "error-localProfileNotSet",
@@ -75,4 +77,6 @@ export const ERROR_TRANSLATIONS: Record<ERROR_CODES, string> = {
   CANNOT_OPEN_AN_ARCHIVED_STORY: "error-cannotOpenAnArchivedStory",
   CANNOT_MERGE_AN_ARCHIVED_STORY: "error-cannotMergeAnArchivedStory",
   USERNAME_ALREADY_EXISTS: "error-usernameAlreadyExists",
+  UNABLE_TO_UPDATE_STORY_URL: "error-unableToUpdateStoryURL",
+  DATA_CACHING_NOT_AVAILABLE: "error-dataCachingNotAvailable",
 };

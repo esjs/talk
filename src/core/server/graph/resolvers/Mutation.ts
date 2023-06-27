@@ -458,9 +458,10 @@ export const Mutation: Required<GQLMutationTypeResolver<void>> = {
     { input: { clientMutationId, ...input } },
     ctx
   ) => ({
-    phase: await ctx.mutators.Settings.rotateExternalModerationPhaseSigningSecret(
-      input
-    ),
+    phase:
+      await ctx.mutators.Settings.rotateExternalModerationPhaseSigningSecret(
+        input
+      ),
     clientMutationId,
   }),
   testSMTP: async (source, { input: { clientMutationId } }, ctx) => {
@@ -489,4 +490,23 @@ export const Mutation: Required<GQLMutationTypeResolver<void>> = {
     comments: await ctx.mutators.Comments.markAsSeen(input),
     clientMutationId: input.clientMutationId,
   }),
+  refreshStoryCounts: async (source, { input }, ctx) => ({
+    story: await ctx.mutators.Stories.refreshStoryCounts(input),
+    clientMutationId: input.clientMutationId,
+  }),
+  cacheStory: async (source, { input }, ctx) => ({
+    story: await ctx.mutators.Stories.cacheStory(input),
+    clientMutationId: input.clientMutationId,
+  }),
+  invalidateCachedStory: async (source, { input }, ctx) => ({
+    story: await ctx.mutators.Stories.invalidateCachedStory(input),
+    clientMutationId: input.clientMutationId,
+  }),
+  flushRedis: async (source, { input: { clientMutationId } }, ctx) => {
+    await ctx.mutators.Redis.flush();
+
+    return {
+      clientMutationId,
+    };
+  },
 };

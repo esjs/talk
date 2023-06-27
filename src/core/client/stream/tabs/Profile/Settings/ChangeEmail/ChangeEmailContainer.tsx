@@ -4,7 +4,9 @@ import { FORM_ERROR, FormApi, FormState } from "final-form";
 import React, {
   FunctionComponent,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Field, Form } from "react-final-form";
@@ -52,9 +54,8 @@ import styles from "./ChangeEmailContainer.css";
 const fetcher = createFetch(
   "resendConfirmation",
   async (environment: Environment, variables, { eventEmitter, rest }) => {
-    const resendEmailVerificationEvent = ResendEmailVerificationEvent.begin(
-      eventEmitter
-    );
+    const resendEmailVerificationEvent =
+      ResendEmailVerificationEvent.begin(eventEmitter);
     try {
       const result = await rest.fetch<void>("/account/confirm", {
         method: "POST",
@@ -85,6 +86,7 @@ const ChangeEmailContainer: FunctionComponent<Props> = ({
   viewer,
   settings,
 }) => {
+  const newEmailRef = useRef<HTMLInputElement>(null);
   const emitShowEvent = useViewerEvent(ShowEditEmailDialogEvent);
   const updateEmail = useMutation(UpdateEmailMutation);
 
@@ -167,6 +169,12 @@ const ChangeEmailContainer: FunctionComponent<Props> = ({
       (hasSubmitErrors && !dirtySinceLastSubmit)
     );
   };
+
+  useEffect(() => {
+    if (newEmailRef.current) {
+      newEmailRef.current.focus();
+    }
+  });
 
   return (
     <HorizontalGutter
@@ -253,7 +261,7 @@ const ChangeEmailContainer: FunctionComponent<Props> = ({
                   </div>
                   <Localized
                     id="profile-changeEmail-please-verify-details"
-                    $email={viewer.email}
+                    vars={{ email: viewer.email }}
                   >
                     <div>
                       An email has been sent to {viewer.email} to verify your
@@ -289,12 +297,16 @@ const ChangeEmailContainer: FunctionComponent<Props> = ({
             [styles.changeButtonMessage]: showSuccessMessage,
           })}
         >
-          <Localized id="profile-changeEmail-change">
+          <Localized
+            id="profile-changeEmail-change"
+            attrs={{ "aria-lable": true }}
+          >
             <Button
               className={CLASSES.myEmail.editButton}
               variant="flat"
               paddingSize="none"
               onClick={toggleEditForm}
+              aria-label="Change email"
             >
               Change
             </Button>
@@ -376,6 +388,7 @@ const ChangeEmailContainer: FunctionComponent<Props> = ({
                               fullWidth
                               id="profile-changeEmail-Email"
                               color={streamColorFromMeta(meta)}
+                              ref={newEmailRef}
                             />
                             <ValidationMessage
                               meta={meta}

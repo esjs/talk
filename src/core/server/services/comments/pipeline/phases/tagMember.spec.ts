@@ -26,7 +26,7 @@ interface Case {
  */
 const testCase = (input: Case): GQLTAG | void => {
   const result = tagMember(
-    (input as unknown) as IntermediateModerationPhaseContext
+    input as unknown as IntermediateModerationPhaseContext
   ) as any;
 
   if (result?.tags?.length > 1) {
@@ -47,17 +47,17 @@ const siteBStory = createStoryFixture({ tenantID, siteID: siteB.id });
 const siteAMember = createUserFixture({
   tenantID,
   role: GQLUSER_ROLE.MEMBER,
-  membershipScopes: { siteIDs: [siteA.id] },
+  membershipScopes: { siteIDs: [siteA.id], scoped: true },
 });
 const siteBMember = createUserFixture({
   tenantID,
   role: GQLUSER_ROLE.MEMBER,
-  membershipScopes: { siteIDs: [siteB.id] },
+  membershipScopes: { siteIDs: [siteB.id], scoped: true },
 });
 const sitesABMember = createUserFixture({
   tenantID,
   role: GQLUSER_ROLE.MEMBER,
-  membershipScopes: { siteIDs: [siteA.id, siteB.id] },
+  membershipScopes: { siteIDs: [siteA.id, siteB.id], scoped: true },
 });
 
 it("members get badges on sites within their scope", async () => {

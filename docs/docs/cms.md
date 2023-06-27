@@ -33,7 +33,7 @@ Options object for `createStreamEmbed`:
 
 - `id` - [string] _(required)_: ID of a DOM element on the page into which the comment stream will be rendered.
 - `rootURL` - [string] _(required)_: The root URL of the coral installation.
-- `storyID` - [string] _(optional)_: ID for the story. May alternately specify via `storyURL` or allow Coral to scrape and determine automatically.
+- `storyID` - [string] _(optional)_: ID for the story. May alternately specify via `storyURL` or allow Coral to scrape and determine automatically. If used without a `storyURL`, the comment stream will use the canonical URL of the page it's running on as the `storyURL`.
 - `storyURL` - [string] _(optional)_: URL for the story. May alternately specify via `storyID` or allow Coral to scrape and determine automatically.
 - `accessToken` - [string] _(optional)_: Access token to log in a user via [SSO](/sso).
 - `refreshAccessToken` - [function] _(optional)_: Callback to obtain a new access token when the current one has expired. A parameter `nextAccessToken` is passed as the first argument that should be called with the next access token.
@@ -74,6 +74,8 @@ The URL will be used by Coral to build user facing links, and should reference t
 ### storyID
 
 To more tightly couple Coral with your CMS you can provide your CMS's unique identifier to Coral by including a `storyID` parameter in the render function. Doing so will allow you to target the `Story` for later updates via Coral's Graphql API, such as updating the URL if it changes.
+
+Instructions for integrating the API are at https://docs.coralproject.net/api/schema and the mutation to call for URL updates is https://docs.coralproject.net/api/mutations/update-story
 
 ## Integration via API
 

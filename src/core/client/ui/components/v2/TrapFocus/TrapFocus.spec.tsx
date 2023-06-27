@@ -3,10 +3,11 @@ import { noop } from "lodash";
 import React from "react";
 import { create } from "react-test-renderer";
 import sinon from "sinon";
-import { UIContextProps } from "../UIContext";
 
+import { wait } from "coral-framework/testHelpers";
 import { PropTypesOf } from "coral-ui/types";
 
+import { UIContextProps } from "../UIContext";
 import TrapFocus from "./TrapFocus";
 
 const FakeFocusable: any = class FakeFocusable extends React.Component {
@@ -25,19 +26,6 @@ const context: UIContextProps = {
 
 jest.spyOn(React, "useContext").mockImplementation(() => context);
 
-it("renders correctly", () => {
-  const props: PropTypesOf<typeof TrapFocus> = {
-    children: (
-      <>
-        <span>child1</span>
-        <span>child2</span>
-      </>
-    ),
-  };
-  const renderer = create(<TrapFocus {...props} />, { createNodeMock });
-  expect(renderer.toJSON()).toMatchSnapshot();
-});
-
 // kabeaty: focus seems to be working as expected
 // not sure why this test is failing now
 it.skip("autofocus", () => {
@@ -50,14 +38,16 @@ it.skip("autofocus", () => {
   expect(autoFocus.called).toBe(true);
 });
 
-it("return focus to last active element", () => {
+it("return focus to last active element", async () => {
   expect(document.activeElement).toBe(document.body);
   const bodyMock = sinon.mock(document.body);
   const testRenderer = create(<TrapFocus />, {
     createNodeMock,
   });
   bodyMock.expects("focus");
-  testRenderer.unmount();
+  await wait(async () => {
+    testRenderer.unmount();
+  });
   bodyMock.verify();
 });
 

@@ -1,3 +1,4 @@
+import { DataCache } from "coral-server/data/cache/dataCache";
 import { MongoContext } from "coral-server/data/context";
 import { CoralEventPublisherBroker } from "coral-server/events/publisher";
 import { getLatestRevision, hasTag } from "coral-server/models/comment";
@@ -14,10 +15,12 @@ import {
 } from "coral-server/graph/schema/__generated__/types";
 
 import { publishChanges } from "./helpers";
+import { updateTagCommentCounts } from "./helpers/updateAllCommentCounts";
 
 const rejectComment = async (
   mongo: MongoContext,
   redis: AugmentedRedis,
+  cache: DataCache,
   broker: CoralEventPublisherBroker | null,
   tenant: Tenant,
   commentID: string,
@@ -75,7 +78,32 @@ const rejectComment = async (
 
   // If there was a featured tag on this comment, remove it.
   if (hasTag(result.after, GQLTAG.FEATURED)) {
-    return removeTag(mongo, tenant, result.after.id, GQLTAG.FEATURED);
+    const tagResult = removeTag(
+      mongo,
+      tenant,
+      result.after.id,
+      GQLTAG.FEATURED
+    );
+
+    await updateTagCommentCounts(
+      tenant.id,
+      result.after.storyID,
+      result.after.siteID,
+      mongo,
+      redis,
+      // Create a diff where "before" tags have a featured tag and
+      // the "after" does not since the previous `removeTag` took
+      // away the featured tag on the comment
+      result.after.tags,
+      result.after.tags.filter((t) => t.type !== GQLTAG.FEATURED)
+    );
+
+    return tagResult;
+  }
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.comments.remove(result.after);
   }
 
   // Return the resulting comment.

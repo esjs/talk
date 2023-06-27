@@ -48,9 +48,10 @@ const PostCommentFormFake: FunctionComponent<Props> = ({
   const onFocus = useCallback(() => {
     emitFocusEvent();
   }, [emitFocusEvent]);
-  const onChange = useCallback((html: string) => onDraftChange(html), [
-    onDraftChange,
-  ]);
+  const onChange = useCallback(
+    (html: string) => onDraftChange(html),
+    [onDraftChange]
+  );
   const isQA = story.settings && story.settings.mode === GQLSTORY_MODE.QA;
   return (
     <div id={POST_COMMENT_FORM_ID} className={CLASSES.createComment.$root}>
@@ -61,7 +62,7 @@ const PostCommentFormFake: FunctionComponent<Props> = ({
         />
       )}
       <HorizontalGutter className={styles.root}>
-        <div className={styles.rteContainer}>
+        <div className={cn(styles.rteContainer, CLASSES.rte.fakeContainer)}>
           <Localized
             id={
               isQA

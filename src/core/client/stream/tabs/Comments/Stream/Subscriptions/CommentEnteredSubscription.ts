@@ -18,6 +18,7 @@ import {
   determineDepthTillAncestor,
   determineDepthTillStory,
   getFlattenedReplyAncestorID,
+  getReplyAncestorID,
   lookupFlattenReplies,
 } from "../../helpers";
 
@@ -25,6 +26,7 @@ function updateForNewestFirst(
   store: RecordSourceSelectorProxy<unknown>,
   storyID: string,
   storyConnectionKey: string,
+  refreshStream?: boolean | null,
   tag?: string
 ) {
   const rootField = store.getRootField("commentEntered");
@@ -45,6 +47,7 @@ function updateForNewestFirst(
     {
       orderBy: GQLCOMMENT_SORT.CREATED_AT_DESC,
       tag,
+      refreshStream,
     }
   )!;
   const linked = connection.getLinkedRecords("viewNewEdges") || [];
@@ -57,6 +60,7 @@ function updateForOldestFirst(
   store: RecordSourceSelectorProxy<unknown>,
   storyID: string,
   storyConnectionKey: string,
+  refreshStream?: boolean | null,
   tag?: string
 ) {
   const story = store.get(storyID)!;
@@ -66,6 +70,7 @@ function updateForOldestFirst(
     {
       orderBy: GQLCOMMENT_SORT.CREATED_AT_ASC,
       tag,
+      refreshStream,
     }
   )!;
   const pageInfo = connection.getLinkedRecord("pageInfo")!;
@@ -84,6 +89,7 @@ function insertReply(
   flattenReplies: boolean,
   storyID: string,
   storyConnectionKey: string,
+  refreshStream?: boolean | null,
   orderBy?: GQLCOMMENT_SORT_RL,
   tag?: string,
   ancestorID?: string | null
@@ -97,13 +103,14 @@ function insertReply(
   }
 
   const depth = ancestorID
-    ? determineDepthTillAncestor(store, comment, ancestorID)
+    ? determineDepthTillAncestor(store, comment, refreshStream, ancestorID)
     : determineDepthTillStory(
         store,
         comment,
         storyID,
         orderBy!,
         storyConnectionKey,
+        refreshStream,
         tag
       );
 
@@ -132,7 +139,7 @@ function insertReply(
   const connection = ConnectionHandler.getConnection(
     parentProxy,
     "ReplyList_replies",
-    { orderBy: GQLCOMMENT_SORT.CREATED_AT_ASC }
+    { orderBy: GQLCOMMENT_SORT.CREATED_AT_ASC, refreshStream }
   );
   if (!connection) {
     // If it has no connection, it could not have been
@@ -155,6 +162,26 @@ function insertReply(
     const linked = connection.getLinkedRecords("viewNewEdges") || [];
     connection.setLinkedRecords(linked.concat(commentsEdge), "viewNewEdges");
   }
+
+  // This adds the new reply to the allChildComments for the root-level ancestor
+  // comment of the reply. This enables the new reply to be found as a next
+  // unseen comment by keyboard shortcuts.
+  const replyAncestorID =
+    ancestorID || (getReplyAncestorID(comment, depth) as string);
+  const ancestorProxy = store.get(replyAncestorID);
+  const allChildCommentsAncestor = ancestorProxy?.getOrCreateLinkedRecord(
+    "allChildComments",
+    "allChildComments",
+    []
+  );
+  if (allChildCommentsAncestor) {
+    const allChildEdges =
+      allChildCommentsAncestor.getLinkedRecords("edges") || [];
+    allChildCommentsAncestor.setLinkedRecords(
+      allChildEdges.concat(commentsEdge),
+      "edges"
+    );
+  }
 }
 
 type CommentEnteredVariables = Omit<
@@ -163,6 +190,8 @@ type CommentEnteredVariables = Omit<
 > & {
   /** orderBy that was supplied to the `comments` connection on Story */
   orderBy?: GQLCOMMENT_SORT_RL;
+  /** refreshStream that was supplied to the `comments` connection on Story */
+  refreshStream?: boolean | null;
   /** Tag that was supplied to the `comments` connection on Story */
   tag?: string;
   /** If set together with ancestorID, direct replies to the ancestor will immediately displayed */
@@ -179,6 +208,7 @@ const CommentEnteredSubscription = createSubscription(
         $storyID: ID!
         $ancestorID: ID
         $flattenReplies: Boolean!
+        $refreshStream: Boolean
       ) {
         commentEntered(storyID: $storyID, ancestorID: $ancestorID) {
           comment {
@@ -191,6 +221,7 @@ const CommentEnteredSubscription = createSubscription(
               code
             }
             ...AllCommentsTabCommentContainer_comment
+              @arguments(refreshStream: $refreshStream)
           }
         }
       }
@@ -199,6 +230,7 @@ const CommentEnteredSubscription = createSubscription(
       storyID: variables.storyID,
       ancestorID: variables.ancestorID,
       flattenReplies: lookupFlattenReplies(environment),
+      refreshStream: variables.refreshStream,
     },
     updater: (store) => {
       const rootField = store.getRootField("commentEntered");
@@ -249,6 +281,7 @@ const CommentEnteredSubscription = createSubscription(
           flattenReplies,
           variables.storyID,
           variables.storyConnectionKey,
+          variables.refreshStream,
           variables.orderBy,
           variables.tag,
           variables.ancestorID
@@ -259,6 +292,7 @@ const CommentEnteredSubscription = createSubscription(
           store,
           variables.storyID,
           variables.storyConnectionKey,
+          variables.refreshStream,
           variables.tag
         );
         return;
@@ -267,6 +301,7 @@ const CommentEnteredSubscription = createSubscription(
           store,
           variables.storyID,
           variables.storyConnectionKey,
+          variables.refreshStream,
           variables.tag
         );
         return;

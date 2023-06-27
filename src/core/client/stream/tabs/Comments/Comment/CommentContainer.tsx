@@ -14,7 +14,7 @@ import { isBeforeDate } from "coral-common/utils";
 import { getURLWithCommentID } from "coral-framework/helpers";
 import { useToggleState } from "coral-framework/hooks";
 import { useCoralContext } from "coral-framework/lib/bootstrap";
-import { MutationProp, useMutation } from "coral-framework/lib/relay";
+import { MutationProp, useLocal, useMutation } from "coral-framework/lib/relay";
 import withFragmentContainer from "coral-framework/lib/relay/withFragmentContainer";
 import { Ability, can } from "coral-framework/permissions";
 import {
@@ -51,6 +51,7 @@ import { CommentContainer_comment as CommentData } from "coral-stream/__generate
 import { CommentContainer_settings as SettingsData } from "coral-stream/__generated__/CommentContainer_settings.graphql";
 import { CommentContainer_story as StoryData } from "coral-stream/__generated__/CommentContainer_story.graphql";
 import { CommentContainer_viewer as ViewerData } from "coral-stream/__generated__/CommentContainer_viewer.graphql";
+import { CommentContainerLocal } from "coral-stream/__generated__/CommentContainerLocal.graphql";
 
 import { useCommentSeenEnabled } from "../commentSeen";
 import { isPublished } from "../helpers";
@@ -143,6 +144,11 @@ export const CommentContainer: FunctionComponent<Props> = ({
   showRemoveAnswered,
   enableJumpToParent,
 }) => {
+  const [{ showCommentIDs }] = useLocal<CommentContainerLocal>(graphql`
+    fragment CommentContainerLocal on Local {
+      showCommentIDs
+    }
+  `);
   const commentSeenEnabled = useCommentSeenEnabled();
   const canCommitCommentSeen = !!(viewer && viewer.id) && commentSeenEnabled;
   const { eventEmitter } = useCoralContext();
@@ -171,11 +177,8 @@ export const CommentContainer: FunctionComponent<Props> = ({
   ]);
   const setCommentID = useMutation(SetCommentIDMutation);
   const [showReplyDialog, setShowReplyDialog] = useState(false);
-  const [
-    showEditDialog,
-    setShowEditDialog,
-    toggleShowEditDialog,
-  ] = useToggleState(false);
+  const [showEditDialog, setShowEditDialog, toggleShowEditDialog] =
+    useToggleState(false);
   const [showReportFlow, , toggleShowReportFlow] = useToggleState(false);
   const handleShowConversation = useCallback(
     (e: MouseEvent) => {
@@ -441,7 +444,7 @@ export const CommentContainer: FunctionComponent<Props> = ({
           <>
             <Localized
               id="comments-commentContainer-threadLevelLabel"
-              $level={indentLevel}
+              vars={{ level: indentLevel }}
             >
               <span>Thread Level {indentLevel}:</span>
             </Localized>{" "}
@@ -464,8 +467,8 @@ export const CommentContainer: FunctionComponent<Props> = ({
         {comment.parent && (
           <Localized
             id="comments-commentContainer-replyLabel"
-            $username={comment.author?.username}
-            RelativeTime={<RelativeTime date={comment.createdAt} />}
+            vars={{ username: comment.author?.username ?? "" }}
+            elems={{ RelativeTime: <RelativeTime date={comment.createdAt} /> }}
           >
             <span>
               Reply from {comment.author?.username}{" "}
@@ -476,8 +479,8 @@ export const CommentContainer: FunctionComponent<Props> = ({
         {!comment.parent && isQA && (
           <Localized
             id="comments-commentContainer-questionLabel"
-            $username={comment.author?.username}
-            RelativeTime={<RelativeTime date={comment.createdAt} />}
+            vars={{ username: comment.author?.username ?? "" }}
+            elems={{ RelativeTime: <RelativeTime date={comment.createdAt} /> }}
           >
             <span>
               Question from {comment.author?.username}{" "}
@@ -488,8 +491,8 @@ export const CommentContainer: FunctionComponent<Props> = ({
         {!comment.parent && !isQA && (
           <Localized
             id="comments-commentContainer-commentLabel"
-            $username={comment.author?.username}
-            RelativeTime={<RelativeTime date={comment.createdAt} />}
+            vars={{ username: comment.author?.username ?? "" }}
+            elems={{ RelativeTime: <RelativeTime date={comment.createdAt} /> }}
           >
             <span>
               Comment from {comment.author?.username}{" "}
@@ -500,6 +503,8 @@ export const CommentContainer: FunctionComponent<Props> = ({
       </Hidden>
       <HorizontalGutter>
         <IndentedComment
+          id={comment.id}
+          showCommentID={!!showCommentIDs}
           enableJumpToParent={enableJumpToParent}
           classNameIndented={cn(styles.indentedCommentRoot, {
             [styles.indented]: indentLevel && indentLevel > 0,
@@ -548,7 +553,8 @@ export const CommentContainer: FunctionComponent<Props> = ({
               </Flex>
             )
           }
-          username={
+          username={comment.author?.username}
+          usernameEl={
             comment.author && (
               <UsernameWithPopoverContainer
                 className={cn(
@@ -613,11 +619,18 @@ export const CommentContainer: FunctionComponent<Props> = ({
                         </Button>
                       )}
                       {showAvatar && comment.author?.avatar && (
-                        <div className={styles.avatarContainer}>
+                        <div
+                          className={cn(
+                            styles.avatarContainer,
+                            CLASSES.comment.avatar
+                          )}
+                        >
                           <Localized
                             id="comments-commentContainer-avatar"
                             attrs={{ alt: true }}
-                            $username={comment.author.username}
+                            vars={{
+                              username: comment.author.username,
+                            }}
                           >
                             <img
                               src={comment.author.avatar}
@@ -690,6 +703,7 @@ export const CommentContainer: FunctionComponent<Props> = ({
                         onClick={toggleShowReplyDialog}
                         active={showReplyDialog}
                         disabled={
+                          !comment.canReply ||
                           settings.disableCommenting.enabled ||
                           story.isClosed ||
                           story.isArchived ||
@@ -794,7 +808,10 @@ const enhanced = withShowAuthPopupMutation(
       }
     `,
     story: graphql`
-      fragment CommentContainer_story on Story {
+      fragment CommentContainer_story on Story
+      @argumentDefinitions(
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
         id
         url
         isClosed
@@ -812,7 +829,10 @@ const enhanced = withShowAuthPopupMutation(
       }
     `,
     comment: graphql`
-      fragment CommentContainer_comment on Comment {
+      fragment CommentContainer_comment on Comment
+      @argumentDefinitions(
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
         id
         author {
           id
@@ -851,6 +871,7 @@ const enhanced = withShowAuthPopupMutation(
         }
         hasTraversalFocus
         seen
+        canReply
         ...CaretContainer_comment
         ...EditCommentFormContainer_comment
         ...MediaSectionContainer_comment

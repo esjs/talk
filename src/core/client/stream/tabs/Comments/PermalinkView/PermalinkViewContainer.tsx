@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { graphql } from "react-relay";
 
+import { parseQuery } from "coral-common/utils";
 import { getURLWithCommentID } from "coral-framework/helpers";
 import { useCoralContext } from "coral-framework/lib/bootstrap";
 import {
@@ -16,10 +17,14 @@ import {
   useSubscription,
   withFragmentContainer,
 } from "coral-framework/lib/relay";
+import { parseURL } from "coral-framework/utils";
 import CLASSES from "coral-stream/classes";
 import scrollToBeginning from "coral-stream/common/scrollToBeginning";
 import UserBoxContainer from "coral-stream/common/UserBox";
-import { ViewFullDiscussionEvent } from "coral-stream/events";
+import {
+  EmbedInteractionEvent,
+  ViewFullDiscussionEvent,
+} from "coral-stream/events";
 import { SetCommentIDMutation } from "coral-stream/mutations";
 import ReplyListContainer from "coral-stream/tabs/Comments/ReplyList";
 import { CommentEnteredSubscription } from "coral-stream/tabs/Comments/Stream/Subscriptions";
@@ -42,12 +47,14 @@ interface Props {
   story: StoryData;
   settings: SettingsData;
   viewer: ViewerData | null;
+  refreshStream: boolean | null;
 }
 
 const PermalinkViewContainer: FunctionComponent<Props> = (props) => {
   const { comment, story, viewer, settings } = props;
   const setCommentID = useMutation(SetCommentIDMutation);
-  const { renderWindow, eventEmitter, window } = useCoralContext();
+  const { renderWindow, eventEmitter, window, customScrollContainer } =
+    useCoralContext();
   const root = useShadowRootOrDocument();
 
   const subscribeToCommentEntered = useSubscription(CommentEnteredSubscription);
@@ -61,18 +68,40 @@ const PermalinkViewContainer: FunctionComponent<Props> = (props) => {
       ancestorID: comment.id,
       liveDirectRepliesInsertion: true,
       storyConnectionKey: "Stream_comments",
+      refreshStream: props.refreshStream,
     });
     return () => {
       disposable.dispose();
     };
-  }, [comment?.id, story.id, subscribeToCommentEntered]);
+  }, [comment?.id, story.id, subscribeToCommentEntered, props.refreshStream]);
 
   useEffect(() => {
     if (!renderWindow) {
       return;
     }
-    setTimeout(() => scrollToBeginning(root, renderWindow), 100);
-  }, [root, renderWindow]);
+    setTimeout(
+      () => scrollToBeginning(root, renderWindow, customScrollContainer),
+      100
+    );
+  }, [root, renderWindow, customScrollContainer]);
+
+  const emitEmbedInteractionEvent = useCallback(
+    (interaction: string) => {
+      EmbedInteractionEvent.emit(eventEmitter, {
+        interaction,
+      });
+    },
+    [eventEmitter]
+  );
+
+  useEffect(() => {
+    const parsedURL = parseURL(window.location.href);
+    const query = parseQuery(parsedURL.search);
+    const embedInteraction = query.embedInteraction;
+    if (embedInteraction) {
+      emitEmbedInteractionEvent(embedInteraction);
+    }
+  }, [window.location.href, emitEmbedInteractionEvent]);
 
   const onShowAllComments = useCallback(
     (e: MouseEvent<any>) => {
@@ -163,7 +192,7 @@ const PermalinkViewContainer: FunctionComponent<Props> = (props) => {
                   settings={settings}
                   liveDirectRepliesInsertion
                   allowIgnoredTombstoneReveal
-                  disableHideIgnoredTombstone
+                  refreshStream={props.refreshStream}
                 />
               </div>
             </HorizontalGutter>

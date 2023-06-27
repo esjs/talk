@@ -25,8 +25,8 @@ interface Props {
   comment: ReplyListCommentContainer_comment;
   settings: ReplyListCommentContainer_settings;
   story: ReplyListCommentContainer_story;
+  refreshStream: boolean | null;
   allowIgnoredTombstoneReveal?: boolean;
-  disableHideIgnoredTombstone?: boolean;
   localReply?: boolean;
   indentLevel?: number;
   disableReplies?: boolean;
@@ -41,7 +41,6 @@ const ReplyListCommentContainer: FunctionComponent<Props> = ({
   settings,
   story,
   allowIgnoredTombstoneReveal,
-  disableHideIgnoredTombstone,
   localReply,
   indentLevel,
   disableReplies,
@@ -56,7 +55,6 @@ const ReplyListCommentContainer: FunctionComponent<Props> = ({
         viewer={viewer}
         comment={comment}
         allowTombstoneReveal={allowIgnoredTombstoneReveal}
-        disableHide={disableHideIgnoredTombstone}
       >
         <HorizontalGutter spacing={commentSeenEnabled ? 0 : undefined}>
           <CollapsableComment>

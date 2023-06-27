@@ -222,6 +222,9 @@ export const settings = createFixture<GQLSettings>({
   flattenReplies: false,
   forReviewQueue: false,
   emailDomainModeration: [],
+  embeddedComments: {
+    allowReplies: true,
+  },
 });
 
 export const settingsWithMultisite = createFixture<GQLSettings>(
@@ -447,6 +450,13 @@ export const users = {
         role: GQLUSER_ROLE.ADMIN,
         ignoreable: false,
       },
+      {
+        id: "user-admin-1",
+        username: "Not Markus",
+        email: "not-markus@test.com",
+        role: GQLUSER_ROLE.ADMIN,
+        ignoreable: false,
+      },
     ],
     baseUser
   ),
@@ -468,6 +478,7 @@ export const users = {
         moderationScopes: {
           scoped: true,
           sites: [sites[0]],
+          siteIDs: [sites[0].id],
         },
       },
       {
@@ -479,6 +490,7 @@ export const users = {
         moderationScopes: {
           scoped: true,
           sites: [sites[0], sites[1]],
+          siteIDs: [sites[0].id, sites[1].id],
         },
       },
     ],
@@ -602,6 +614,7 @@ export const stories = createFixtures<GQLStory>([
     isClosed: false,
     isArchived: false,
     isArchiving: false,
+    isUnarchiving: false,
     status: GQLSTORY_STATUS.OPEN,
     createdAt: "2018-11-29T16:01:51.897Z",
     url: "",
@@ -635,6 +648,7 @@ export const stories = createFixtures<GQLStory>([
     isClosed: false,
     isArchived: false,
     isArchiving: false,
+    isUnarchiving: false,
     status: GQLSTORY_STATUS.OPEN,
     createdAt: "2018-11-29T16:01:51.897Z",
     url: "",
@@ -672,6 +686,7 @@ export const stories = createFixtures<GQLStory>([
     isClosed: true,
     isArchived: false,
     isArchiving: false,
+    isUnarchiving: false,
     status: GQLSTORY_STATUS.CLOSED,
     url: "",
     commentCounts: {
@@ -845,12 +860,10 @@ export const reportedComments = createFixtures<GQLComment>(
             score: 0.1,
           },
         },
-        body:
-          "This is the last random sentence I will be writing and I am going to stop mid-sent",
+        body: "This is the last random sentence I will be writing and I am going to stop mid-sent",
       },
       permalink: "http://localhost/comment/0",
-      body:
-        "This is the last random sentence I will be writing and I am going to stop mid-sent",
+      body: "This is the last random sentence I will be writing and I am going to stop mid-sent",
       flags: {
         edges: [
           {
@@ -1129,14 +1142,12 @@ export const reportedComments = createFixtures<GQLComment>(
             ],
           },
         },
-        body:
-          "This is a very long comment with bad words. Let's try bad and bad. Now bad bad.\nBad BAD bad.\n",
+        body: "This is a very long comment with bad words. Let's try bad and bad. Now bad bad.\nBad BAD bad.\n",
       },
       permalink: "http://localhost/comment/4",
       status: GQLCOMMENT_STATUS.PREMOD,
       author: users.commenters[3],
-      body:
-        "This is a very long comment with bad words. Let's try bad and bad. Now bad bad.\nBad BAD bad.\n",
+      body: "This is a very long comment with bad words. Let's try bad and bad. Now bad bad.\nBad BAD bad.\n",
       flags: {
         edges: [
           {

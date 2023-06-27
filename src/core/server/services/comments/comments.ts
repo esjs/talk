@@ -9,6 +9,7 @@ import {
   CommentConnectionInput,
   removeCommentTag,
   retrieveAllCommentsUserConnection as retrieveAllCommentsUserConnectionModel,
+  retrieveChildrenForParentConnection as retrieveChildrenForParentConnectionModel,
   retrieveComment as retrieveCommentModel,
   retrieveCommentConnection as retrieveCommentConnectionModel,
   retrieveCommentParentsConnection as retrieveCommentParentsConnectionModel,
@@ -24,7 +25,10 @@ import { Connection } from "coral-server/models/helpers";
 import { Tenant } from "coral-server/models/tenant";
 import { User } from "coral-server/models/user";
 
-import { GQLTAG } from "coral-server/graph/schema/__generated__/types";
+import {
+  GQLCOMMENT_STATUS,
+  GQLTAG,
+} from "coral-server/graph/schema/__generated__/types";
 
 export function getCollection(
   mongo: MongoContext,
@@ -362,7 +366,7 @@ export function retrieveRejectedCommentUserConnection(
  * the live or the archived comments databases.
  * @returns a connection of comments.
  */
-export function retrieveCommentStoryConnection(
+export async function retrieveCommentStoryConnection(
   mongo: MongoContext,
   tenantID: string,
   storyID: string,
@@ -370,12 +374,14 @@ export function retrieveCommentStoryConnection(
   isArchived?: boolean
 ) {
   const collection = getCollection(mongo, isArchived);
-  return retrieveCommentStoryConnectionModel(
+  const conn = await retrieveCommentStoryConnectionModel(
     collection,
     tenantID,
     storyID,
     input
   );
+
+  return conn;
 }
 
 /**
@@ -435,4 +441,69 @@ export function retrieveCommentParentsConnection(
     comment,
     paginationParameters
   );
+}
+
+/**
+ * retrieves all child comments for a comment.
+ *
+ * @param mongo is the mongo context we retrieve comments from.
+ * @param tenantID is the filtering tenant for these comments.
+ * @param comment is the comment we want to find all child comments for.
+ * @param input is the filtered input to determine which comments to
+ * include in the connection.
+ * @param isArchived is whether this connection should retrieve from
+ * the live or the archived comments databases.
+ * @returns a connection of comments.
+ */
+export function retrieveChildrenForParentConnection(
+  mongo: MongoContext,
+  tenantID: string,
+  comment: Comment,
+  input: CommentConnectionInput,
+  isArchived?: boolean
+) {
+  const collection =
+    isArchived && mongo.archive ? mongo.archivedComments() : mongo.comments();
+  return retrieveChildrenForParentConnectionModel(
+    collection,
+    tenantID,
+    comment,
+    input
+  );
+}
+
+export async function hasRejectedAncestors(
+  mongo: MongoContext,
+  tenantID: string,
+  commentID: string,
+  isArchived = false
+) {
+  const comment = await retrieveComment(
+    mongo,
+    tenantID,
+    commentID,
+    !isArchived
+  );
+  if (!comment) {
+    throw new CommentNotFoundError(commentID);
+  }
+
+  const { ancestorIDs } = comment;
+  if (!ancestorIDs || ancestorIDs.length === 0) {
+    return false;
+  }
+
+  const ancestors = await retrieveManyComments(mongo, tenantID, ancestorIDs);
+
+  if (!ancestors || ancestors.length === 0) {
+    return false;
+  }
+
+  const rejectedAncestors = ancestors.filter(
+    (ancestor) => ancestor && ancestor.status === GQLCOMMENT_STATUS.REJECTED
+  );
+  const hasRejectedStateAncestors =
+    rejectedAncestors && rejectedAncestors.length > 0;
+
+  return hasRejectedStateAncestors;
 }

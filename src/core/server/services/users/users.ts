@@ -9,7 +9,13 @@ import {
   SCHEDULED_DELETION_WINDOW_DURATION,
 } from "coral-common/constants";
 import { formatDate } from "coral-common/date";
+import {
+  isSiteModerationScoped,
+  validatePermissionsAction,
+} from "coral-common/permissions";
+import { PermissionsAction } from "coral-common/permissions/types";
 import { Config } from "coral-server/config";
+import { DataCache } from "coral-server/data/cache/dataCache";
 import { MongoContext } from "coral-server/data/context";
 import {
   DuplicateEmailError,
@@ -101,7 +107,6 @@ import {
   getLocalProfile,
   hasLocalProfile,
   hasStaffRole,
-  isSiteModerationScoped,
 } from "coral-server/models/user/helpers";
 import { MailerQueue } from "coral-server/queue/tasks/mailer";
 import { RejectorQueue } from "coral-server/queue/tasks/rejector";
@@ -124,6 +129,7 @@ import {
   validatePassword,
   validateUsername,
 } from "./helpers";
+import { resolveSideEffects } from "./permissions";
 
 function validateFindOrCreateUserInput(
   input: FindOrCreateUser,
@@ -677,6 +683,7 @@ export async function updateSSOProfileID(
  */
 export async function updateUsername(
   mongo: MongoContext,
+  cache: DataCache,
   mailer: MailerQueue,
   tenant: Tenant,
   user: User,
@@ -743,6 +750,11 @@ export async function updateUsername(
     );
   }
 
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updated);
+  }
+
   return updated;
 }
 
@@ -772,19 +784,55 @@ export async function updateUsernameByID(
  * @param user the user making the request
  * @param userID the User's ID that we are updating
  * @param role the role that we are setting on the User
+ * @param siteIDs the ids of the sites on which the role is active
  */
 export async function updateRole(
   mongo: MongoContext,
   tenant: Tenant,
   viewer: Pick<User, "id">,
   userID: string,
-  role: GQLUSER_ROLE
+  role: GQLUSER_ROLE,
+  scoped: boolean
 ) {
-  if (viewer.id === userID) {
-    throw new Error("cannot update your own user role");
+  const fullViewer = await retrieveUser(mongo, tenant.id, viewer.id);
+  const user = await retrieveUser(mongo, tenant.id, userID);
+  if (fullViewer === null) {
+    throw new UserNotFoundError(viewer.id);
+  }
+  if (user === null) {
+    throw new UserNotFoundError(userID);
   }
 
-  return updateUserRole(mongo, tenant.id, userID, role);
+  if (
+    role !== GQLUSER_ROLE.MODERATOR &&
+    role !== GQLUSER_ROLE.MEMBER &&
+    scoped
+  ) {
+    throw new Error(`${role} cannot be scoped`);
+  }
+
+  const action: PermissionsAction = {
+    viewer: fullViewer,
+    user,
+    newUserRole: role,
+    scoped,
+  };
+
+  const validUpdate = validatePermissionsAction(action);
+
+  if (!validUpdate) {
+    throw new UserForbiddenError(
+      "Invalid role change operation",
+      "user",
+      "updateRole"
+    );
+  }
+
+  const sideEffects = resolveSideEffects(action);
+
+  await Promise.all(sideEffects.map((se) => se(mongo, tenant.id)));
+
+  return updateUserRole(mongo, tenant.id, userID, role, scoped);
 }
 
 export async function promoteModerator(
@@ -794,6 +842,11 @@ export async function promoteModerator(
   userID: string,
   siteIDs: string[]
 ) {
+  // TODO: make sure this logic is represented
+  // scopeAdditions: siteIDs,
+  //   scopeDeletions: relevantScopes?.siteIDs?.filter(
+  //     (id) => !siteIDs?.includes(id)
+  //   ),
   if (viewer.id === userID) {
     throw new Error("cannot promote yourself");
   }
@@ -826,7 +879,7 @@ export async function promoteModerator(
     user.role === GQLUSER_ROLE.MODERATOR &&
     !isSiteModerationScoped(user.moderationScopes)
   ) {
-    throw new Error("user can't be an organization moderator");
+    throw new Error("User is already an organization moderator");
   }
 
   // Merge the site moderation scopes.
@@ -843,7 +896,8 @@ export async function promoteModerator(
       mongo,
       tenant.id,
       user.id,
-      GQLUSER_ROLE.MODERATOR
+      GQLUSER_ROLE.MODERATOR,
+      true
     );
   }
 
@@ -907,7 +961,8 @@ export async function demoteModerator(
       mongo,
       tenant.id,
       user.id,
-      GQLUSER_ROLE.COMMENTER
+      GQLUSER_ROLE.COMMENTER,
+      false
     );
   }
 
@@ -969,7 +1024,8 @@ export async function promoteMember(
       mongo,
       tenant.id,
       updated.id,
-      GQLUSER_ROLE.MEMBER
+      GQLUSER_ROLE.MEMBER,
+      true
     );
   }
 
@@ -1002,7 +1058,8 @@ export async function demoteMember(
       mongo,
       tenant.id,
       updated.id,
-      GQLUSER_ROLE.COMMENTER
+      GQLUSER_ROLE.COMMENTER,
+      false
     );
   }
 
@@ -1016,12 +1073,25 @@ export async function updateModerationScopes(
   userID: string,
   moderationScopes: UserModerationScopes
 ) {
+  const fullViewer = await retrieveUser(mongo, tenant.id, viewer.id);
+  if (isSiteModerationScoped(fullViewer?.moderationScopes)) {
+    throw new UserForbiddenError(
+      "Site moderators may not update moderation scopes",
+      "user",
+      "updateModerationScopes"
+    );
+  }
   if (viewer.id === userID) {
     throw new Error("cannot update your own moderation scopes");
   }
 
   if (!moderationScopes.siteIDs) {
     throw new Error("no sites specified in the moderation scopes");
+  }
+
+  const user = await retrieveUser(mongo, tenant.id, userID);
+  if (!isSiteModerationScoped(user?.moderationScopes)) {
+    throw new Error("User is not moderation scoped");
   }
 
   const sites = await retrieveManySites(
@@ -1128,6 +1198,7 @@ function canUpdateEmailAddress(tenant: Tenant, user: User): boolean {
  */
 export async function updateEmail(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   mailer: MailerQueue,
   config: Config,
@@ -1163,6 +1234,11 @@ export async function updateEmail(
     now
   );
 
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updated);
+  }
+
   return updated;
 }
 
@@ -1189,7 +1265,7 @@ export async function updateEmailByID(
 }
 
 /**
- * updateBio will update the given User's avatar.
+ * updateBio will update the given User's bio.
  *
  * @param mongo mongo database to interact with
  * @param tenant Tenant where the User will be interacted with
@@ -1198,6 +1274,7 @@ export async function updateEmailByID(
  */
 export async function updateBio(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   user: User,
   bio?: string
@@ -1206,7 +1283,14 @@ export async function updateBio(
     throw new UserBioTooLongError(user.id);
   }
 
-  return updateUserBio(mongo, tenant.id, user.id, bio);
+  const updatedUser = await updateUserBio(mongo, tenant.id, user.id, bio);
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 /**
@@ -1219,11 +1303,19 @@ export async function updateBio(
  */
 export async function updateAvatar(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   userID: string,
   avatar?: string
 ) {
-  return updateUserAvatar(mongo, tenant.id, userID, avatar);
+  const updatedUser = await updateUserAvatar(mongo, tenant.id, userID, avatar);
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 /**
@@ -1274,6 +1366,7 @@ export async function destroyModeratorNote(
  * ban will ban a specific user from interacting with Coral.
  *
  * @param mongo mongo database to interact with
+ * @param cache the data cache
  * @param mailer the mailer
  * @param rejector the comment rejector queue
  * @param tenant Tenant where the User will be banned on
@@ -1285,6 +1378,7 @@ export async function destroyModeratorNote(
  */
 export async function ban(
   mongo: MongoContext,
+  cache: DataCache,
   mailer: MailerQueue,
   rejector: RejectorQueue,
   tenant: Tenant,
@@ -1337,6 +1431,10 @@ export async function ban(
         siteIDs,
       });
     }
+    const cacheAvailable = await cache.available(tenant.id);
+    if (cacheAvailable) {
+      await cache.users.update(user);
+    }
   }
   // Otherwise, perform a regular ban
   else {
@@ -1378,6 +1476,11 @@ export async function ban(
 
     if (warningStatus.active) {
       user = await removeUserWarning(mongo, tenant.id, userID, banner.id, now);
+    }
+
+    const cacheAvailable = await cache.available(tenant.id);
+    if (cacheAvailable) {
+      await cache.users.update(user);
     }
 
     if (rejectExistingComments) {
@@ -1431,6 +1534,7 @@ export async function ban(
  */
 export async function updateUserBan(
   mongo: MongoContext,
+  cache: DataCache,
   mailer: MailerQueue,
   rejector: RejectorQueue,
   tenant: Tenant,
@@ -1578,6 +1682,11 @@ export async function updateUserBan(
     });
   }
 
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(user);
+  }
+
   return user;
 }
 
@@ -1585,6 +1694,7 @@ export async function updateUserBan(
  * premod will premod a specific user.
  *
  * @param mongo mongo database to interact with
+ * @param cache the data cache
  * @param tenant Tenant where the User will be banned on
  * @param moderator the User that is banning the User
  * @param userID the ID of the User being banned
@@ -1592,6 +1702,7 @@ export async function updateUserBan(
  */
 export async function premod(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   moderator: User,
   userID: string,
@@ -1610,12 +1721,26 @@ export async function premod(
     throw new UserAlreadyPremoderated();
   }
 
-  // Ban the user.
-  return premodUser(mongo, tenant.id, userID, moderator.id, now);
+  // Premod the user.
+  const updatedUser = await premodUser(
+    mongo,
+    tenant.id,
+    userID,
+    moderator.id,
+    now
+  );
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 export async function removePremod(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   moderator: User,
   userID: string,
@@ -1637,13 +1762,27 @@ export async function removePremod(
   }
 
   // For each of the suspensions, remove it.
-  return removeUserPremod(mongo, tenant.id, userID, moderator.id, now);
+  const updatedUser = await removeUserPremod(
+    mongo,
+    tenant.id,
+    userID,
+    moderator.id,
+    now
+  );
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 /**
  * warn will warn a specific user.
  *
  * @param mongo mongo database to interact with
+ * @param cache the data cache
  * @param tenant Tenant where the User will be warned on
  * @param moderator the User that is warning the User
  * @param userID the ID of the User being warned
@@ -1651,6 +1790,7 @@ export async function removePremod(
  */
 export async function warn(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   moderator: User,
   userID: string,
@@ -1670,12 +1810,27 @@ export async function warn(
     throw new Error("User already warned");
   }
 
-  // Ban the user.
-  return warnUser(mongo, tenant.id, userID, moderator.id, message, now);
+  // Warn the user.
+  const updatedUser = await warnUser(
+    mongo,
+    tenant.id,
+    userID,
+    moderator.id,
+    message,
+    now
+  );
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 export async function removeWarning(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   moderator: User,
   userID: string,
@@ -1697,7 +1852,20 @@ export async function removeWarning(
   }
 
   // remove warning.
-  return removeUserWarning(mongo, tenant.id, userID, moderator.id, now);
+  const updatedUser = await removeUserWarning(
+    mongo,
+    tenant.id,
+    userID,
+    moderator.id,
+    now
+  );
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 export async function acknowledgeWarning(
@@ -1787,6 +1955,7 @@ export async function acknowledgeModMessage(
  * suspend will suspend a give user from interacting with Coral.
  *
  * @param mongo mongo database to interact with
+ * @param cache the data cache
  * @param mailer the mailer
  * @param tenant Tenant where the User will be suspended on
  * @param user the User that is suspending the User
@@ -1797,6 +1966,7 @@ export async function acknowledgeModMessage(
  */
 export async function suspend(
   mongo: MongoContext,
+  cache: DataCache,
   mailer: MailerQueue,
   tenant: Tenant,
   user: User,
@@ -1834,6 +2004,11 @@ export async function suspend(
     now
   );
 
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
   // If the user has an email address associated with their account, send them
   // a suspend notification email.
   if (updatedUser.email) {
@@ -1863,6 +2038,7 @@ export async function suspend(
 
 export async function removeSuspension(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   user: User,
   userID: string,
@@ -1887,11 +2063,24 @@ export async function removeSuspension(
   }
 
   // For each of the suspensions, remove it.
-  return removeActiveUserSuspensions(mongo, tenant.id, userID, user.id, now);
+  const updatedUser = await removeActiveUserSuspensions(
+    mongo,
+    tenant.id,
+    userID,
+    user.id,
+    now
+  );
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 export async function removeBan(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   viewer: User,
   userID: string,
@@ -1908,11 +2097,22 @@ export async function removeBan(
 
   // Remove a regular ban
   if (banStatus.active) {
-    return removeUserBan(mongo, tenant.id, userID, viewer.id, now);
+    const updatedUser = await removeUserBan(
+      mongo,
+      tenant.id,
+      userID,
+      viewer.id,
+      now
+    );
+    const cacheAvailable = await cache.available(tenant.id);
+    if (cacheAvailable) {
+      await cache.users.update(updatedUser);
+    }
+    return updatedUser;
   }
   // Remove a site ban
   else if (banStatus.siteIDs && banStatus.siteIDs.length > 0) {
-    return removeUserSiteBan(
+    const updatedUser = await removeUserSiteBan(
       mongo,
       tenant.id,
       userID,
@@ -1920,6 +2120,11 @@ export async function removeBan(
       now,
       banStatus.siteIDs
     );
+    const cacheAvailable = await cache.available(tenant.id);
+    if (cacheAvailable) {
+      await cache.users.update(updatedUser);
+    }
+    return updatedUser;
   }
 
   // The user is not ban currently, just return the user because we don't
@@ -2058,20 +2263,46 @@ export async function requestUserCommentsDownload(
 
 export async function updateNotificationSettings(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   user: User,
   settings: NotificationSettingsInput
 ) {
-  return updateUserNotificationSettings(mongo, tenant.id, user.id, settings);
+  const updatedUser = await updateUserNotificationSettings(
+    mongo,
+    tenant.id,
+    user.id,
+    settings
+  );
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 export async function updateMediaSettings(
   mongo: MongoContext,
+  cache: DataCache,
   tenant: Tenant,
   user: User,
   settings: UpdateUserMediaSettingsInput
 ) {
-  return updateUserMediaSettings(mongo, tenant.id, user.id, settings);
+  const updatedUser = await updateUserMediaSettings(
+    mongo,
+    tenant.id,
+    user.id,
+    settings
+  );
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.users.update(updatedUser);
+  }
+
+  return updatedUser;
 }
 
 function userLastCommentIDKey(

@@ -183,11 +183,11 @@ comments-commentContainer-threadLevelLabel = Thread-Level { $level }:
 comments-commentContainer-highlightedLabel = Hervorgehoben:
 comments-commentContainer-ancestorLabel = Vorher:
 comments-commentContainer-replyLabel =
-  Antwort von { $username } <RelativeZeit></RelativeZeit>
+  Antwort von { $username } <RelativeTime></RelativeTime>
 comments-commentContainer-questionLabel =
-  Frage von { $username } <RelativZeit></RelativZeit>
+  Frage von { $username } <RelativeTime></RelativeTime>
 comments-commentContainer-commentLabel =
-  Kommentar von { $username } <RelativZeit></RelativZeit>
+  Kommentar von { $username } <RelativeTime></RelativeTime>
 comments-commentContainer-editButton = Bearbeiten
 
 comments-commentContainer-avatar =
@@ -210,12 +210,12 @@ comments-conversationThread-showMoreOfThisConversation =
 ## comments-permalinkView-singleConversation =
 comments-permalinkView-youAreCurrentlyViewing =
   Sie sehen gerade eine einzelne Unterhaltung.
-comments-inReplyTo = Antwort auf <Benutzername></Benutzername>
-comments-replyingTo = Antwort auf <Benutzername></Benutzername>
+comments-inReplyTo = Antwort auf <Username></Username>
+comments-replyingTo = Antwort auf <Username></Username>
 
 comments-reportButton-report = Melden
 comments-reportButton-reported = Gemeldet
-comments-reportButton-aria-report = Melden
+comments-reportButton-aria-report =
   .aria-label = Kommentar von {$username} melden
 comments-reportButton-aria-reported =
   .aria-label = Gemeldet
@@ -302,7 +302,7 @@ qa-unansweredTab = Unbeantwortet
 qa-allCommentsTab = Alle
 
 qa-answered-answerLabel =
-  Antwort von {$username} <RelativZeit></RelativZeit>
+  Antwort von {$username} <RelativeTime></RelativeTime>
 qa-answered-gotoConversation = Zur Unterhaltung
 qa-answered-replies = Antworten
 
@@ -389,7 +389,7 @@ comments-embedLinks-hide-external = Bild ausblenden
 
 ### Featured Comments
 comments-featured-label =
-  Hervorgehobener Kommentar von {$username} <RelativZeit></RelativZeit>
+  Hervorgehobener Kommentar von {$username} <RelativeTime></RelativeTime>
 comments-featured-gotoConversation = Zur Unterhaltung
 comments-featured-replies = Antworten
 
@@ -423,7 +423,7 @@ profile-accountDeletion-cancelAccountDeletion =
 profile-commentHistory-section =
   .aria-label = Kommentar-Historie
 profile-historyComment-commentLabel =
-  Kommentare <RelativZeit></RelativZeit> zu { $storyTitle }
+  Kommentare <RelativeTime></RelativeTime> zu { $storyTitle }
 profile-historyComment-viewConversation = Unterhaltung anzeigen
 profile-historyComment-replies = {$replyCount} Antworten
 profile-historyComment-commentHistory = Kommentar-Historie
@@ -580,7 +580,7 @@ profile-account-notifications-sendNotifications-daily = Täglich
 profile-account-notifications-sendNotifications-hourly = Stündlich
 profile-account-notifications-updated = Ihre Benachrichtigungseinstellungen wurden aktualisiert.
 profile-account-notifications-button = Benachrichtigungseinstellungen aktualisieren
-profile-account-notifications-buttonon-update = Aktualisieren
+profile-account-notifications-button-update = Aktualisieren
 
 ## Report Comment Popover
 comments-reportPopover =
@@ -788,7 +788,7 @@ suspendInfo-heading-yourAccountHasBeen =
   Ihr Benutzerkonto wurde vorübergehend für Kommentare gesperrt.
 ## suspendInfo-info =
 suspendInfo-description-inAccordanceWith =
-  In Übereinstimmung mit den Community-Richtlinien von { $organisation } wurde Ihr Benutzerkonto vorübergehend gesperrt. Während der Sperrung können Sie keine Kommentare verfassen, Reaktionen verwenden oder Kommentare melden.
+  In Übereinstimmung mit den Community-Richtlinien von { $organization } wurde Ihr Benutzerkonto vorübergehend gesperrt. Während der Sperrung können Sie keine Kommentare verfassen, Reaktionen verwenden oder Kommentare melden.
 suspendInfo-until-pleaseRejoinThe =
   Bitte nehmen Sie bis { $until } wieder an der Unterhaltung teil.
 

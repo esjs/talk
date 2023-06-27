@@ -17,9 +17,11 @@ import {
 } from "coral-framework/lib/relay";
 import { FragmentKeys } from "coral-framework/lib/relay/types";
 import { Overwrite } from "coral-framework/types";
+import { MAX_REPLY_INDENT_DEPTH } from "coral-stream/constants";
+
 import {
   ShowAllRepliesEvent,
-  ViewNewCommentsNetworkEvent,
+  ViewNewRepliesNetworkEvent,
 } from "coral-stream/events";
 
 import { ReplyListContainer1_comment } from "coral-stream/__generated__/ReplyListContainer1_comment.graphql";
@@ -37,6 +39,21 @@ import { ReplyListContainer3_settings } from "coral-stream/__generated__/ReplyLi
 import { ReplyListContainer3_story } from "coral-stream/__generated__/ReplyListContainer3_story.graphql";
 import { ReplyListContainer3_viewer } from "coral-stream/__generated__/ReplyListContainer3_viewer.graphql";
 import { ReplyListContainer3PaginationQueryVariables } from "coral-stream/__generated__/ReplyListContainer3PaginationQuery.graphql";
+import { ReplyListContainer4_comment } from "coral-stream/__generated__/ReplyListContainer4_comment.graphql";
+import { ReplyListContainer4_settings } from "coral-stream/__generated__/ReplyListContainer4_settings.graphql";
+import { ReplyListContainer4_story } from "coral-stream/__generated__/ReplyListContainer4_story.graphql";
+import { ReplyListContainer4_viewer } from "coral-stream/__generated__/ReplyListContainer4_viewer.graphql";
+import { ReplyListContainer4PaginationQueryVariables } from "coral-stream/__generated__/ReplyListContainer4PaginationQuery.graphql";
+import { ReplyListContainer5_comment } from "coral-stream/__generated__/ReplyListContainer5_comment.graphql";
+import { ReplyListContainer5_settings } from "coral-stream/__generated__/ReplyListContainer5_settings.graphql";
+import { ReplyListContainer5_story } from "coral-stream/__generated__/ReplyListContainer5_story.graphql";
+import { ReplyListContainer5_viewer } from "coral-stream/__generated__/ReplyListContainer5_viewer.graphql";
+import { ReplyListContainer5PaginationQueryVariables } from "coral-stream/__generated__/ReplyListContainer5PaginationQuery.graphql";
+import { ReplyListContainer6_comment } from "coral-stream/__generated__/ReplyListContainer6_comment.graphql";
+import { ReplyListContainer6_settings } from "coral-stream/__generated__/ReplyListContainer6_settings.graphql";
+import { ReplyListContainer6_story } from "coral-stream/__generated__/ReplyListContainer6_story.graphql";
+import { ReplyListContainer6_viewer } from "coral-stream/__generated__/ReplyListContainer6_viewer.graphql";
+import { ReplyListContainer6PaginationQueryVariables } from "coral-stream/__generated__/ReplyListContainer6PaginationQuery.graphql";
 import { ReplyListContainerLast_comment } from "coral-stream/__generated__/ReplyListContainerLast_comment.graphql";
 import { ReplyListContainerLast_settings } from "coral-stream/__generated__/ReplyListContainerLast_settings.graphql";
 import { ReplyListContainerLast_story } from "coral-stream/__generated__/ReplyListContainerLast_story.graphql";
@@ -59,30 +76,45 @@ type Viewer =
   | ReplyListContainer1_viewer
   | ReplyListContainer2_viewer
   | ReplyListContainer3_viewer
+  | ReplyListContainer4_viewer
+  | ReplyListContainer5_viewer
+  | ReplyListContainer6_viewer
   | ReplyListContainerLastFlattened_viewer;
 
 type Comment =
   | ReplyListContainer1_comment
   | ReplyListContainer2_comment
   | ReplyListContainer3_comment
+  | ReplyListContainer4_comment
+  | ReplyListContainer5_comment
+  | ReplyListContainer6_comment
   | ReplyListContainerLastFlattened_comment;
 
 type Story =
   | ReplyListContainer1_story
   | ReplyListContainer2_story
   | ReplyListContainer3_story
+  | ReplyListContainer4_story
+  | ReplyListContainer5_story
+  | ReplyListContainer6_story
   | ReplyListContainerLastFlattened_story;
 
 type Settings =
   | ReplyListContainer1_settings
   | ReplyListContainer2_settings
   | ReplyListContainer3_settings
+  | ReplyListContainer4_settings
+  | ReplyListContainer5_settings
+  | ReplyListContainer6_settings
   | ReplyListContainerLastFlattened_settings;
 
 type PaginationQuery =
   | ReplyListContainer1PaginationQueryVariables
   | ReplyListContainer2PaginationQueryVariables
   | ReplyListContainer3PaginationQueryVariables
+  | ReplyListContainer4PaginationQueryVariables
+  | ReplyListContainer5PaginationQueryVariables
+  | ReplyListContainer6PaginationQueryVariables
   | ReplyListContainerLastFlattenedPaginationQueryVariables;
 
 /**
@@ -99,7 +131,7 @@ interface BaseProps {
   /* The following props are passed through nested ReplyLists */
   /* (don't forget to pass it down below in ReplyListContainer) */
   allowIgnoredTombstoneReveal?: boolean | undefined;
-  disableHideIgnoredTombstone?: boolean | undefined;
+  refreshStream: boolean | null;
 
   /* The following props are *NOT* passed through nested ReplyLists */
   /**
@@ -116,8 +148,10 @@ interface BaseProps {
  * Calculate the Props for the <NextReplyListComponent /> from BaseProps.
  * Essentially marking fragments to accept `any` and excluding `relay` property.
  */
-type NextReplyListProps = { [P in FragmentKeys<BaseProps>]: any } &
-  Pick<BaseProps, Exclude<keyof BaseProps, FragmentKeys<BaseProps> | "relay">>;
+type NextReplyListProps = { [P in FragmentKeys<BaseProps>]: any } & Pick<
+  BaseProps,
+  Exclude<keyof BaseProps, FragmentKeys<BaseProps> | "relay">
+>;
 
 /**
  * These props are injected by HOCs defined in `createReplyListContainer`.
@@ -162,7 +196,8 @@ graphql`
 `;
 // eslint-disable-next-line no-unused-expressions
 graphql`
-  fragment ReplyListContainer_comment on Comment {
+  fragment ReplyListContainer_comment on Comment
+  @argumentDefinitions(refreshStream: { type: "Boolean" }) {
     id
     status
     pending
@@ -205,19 +240,22 @@ type FragmentVariables = Omit<PaginationQuery, "commentID">;
  */
 export const ReplyListContainer: React.FunctionComponent<Props> = (props) => {
   const flattenReplies = props.flattenReplies;
-  const [{ keyboardShortcutsConfig }] = useLocal<ReplyListContainerLocal>(
-    graphql`
-      fragment ReplyListContainerLocal on Local {
-        keyboardShortcutsConfig {
-          key
-          source
-          reverse
+  const [{ keyboardShortcutsConfig, refreshStream }] =
+    useLocal<ReplyListContainerLocal>(
+      graphql`
+        fragment ReplyListContainerLocal on Local {
+          keyboardShortcutsConfig {
+            key
+            source
+            reverse
+          }
+          refreshStream
         }
-      }
-    `
-  );
+      `
+    );
   // We do local replies at the last level when flatten replies are not set.
-  const atLastLevelLocalReply = props.indentLevel === 3 && !flattenReplies;
+  const atLastLevelLocalReply =
+    props.indentLevel === MAX_REPLY_INDENT_DEPTH - 1 && !flattenReplies;
 
   const memoize = useMemoizer();
   const [showAll, isLoadingShowAll] = useLoadMore(props.relay, 999999999);
@@ -235,15 +273,15 @@ export const ReplyListContainer: React.FunctionComponent<Props> = (props) => {
       // eslint-disable-next-line no-console
       console.error(error);
     }
-  }, [showAll, beginShowAllEvent, props.comment.id]);
+  }, [showAll, beginShowAllEvent, props.comment.id, keyboardShortcutsConfig]);
 
   const viewNew = useMutation(ReplyListViewNewMutation);
-  const beginViewNewCommentsEvent = useViewerNetworkEvent(
-    ViewNewCommentsNetworkEvent
+  const beginViewNewRepliesEvent = useViewerNetworkEvent(
+    ViewNewRepliesNetworkEvent
   );
   const markAsSeen = useMutation(MarkCommentsAsSeenMutation);
   const onViewNew = useCallback(async () => {
-    const viewNewCommentsEvent = beginViewNewCommentsEvent({
+    const viewNewRepliesEvent = beginViewNewRepliesEvent({
       storyID: props.story.id,
       keyboardShortcutsConfig,
     });
@@ -255,15 +293,23 @@ export const ReplyListContainer: React.FunctionComponent<Props> = (props) => {
         viewerID: props.viewer?.id,
         markAsSeen,
       }));
-      viewNewCommentsEvent.success();
+      viewNewRepliesEvent.success();
     } catch (error) {
-      viewNewCommentsEvent.error({ message: error.message, code: error.code });
+      viewNewRepliesEvent.error({ message: error.message, code: error.code });
       // eslint-disable-next-line no-console
       console.error(error);
     }
-  }, [props.comment.id, props.story.id, viewNew, beginViewNewCommentsEvent]);
+  }, [
+    props.comment.id,
+    props.story.id,
+    viewNew,
+    beginViewNewRepliesEvent,
+    keyboardShortcutsConfig,
+    markAsSeen,
+    props.viewer,
+  ]);
 
-  if (!("replies" in props.comment)) {
+  if (!("replies" in props.comment) || props.comment.replies === undefined) {
     return null;
   }
 
@@ -300,12 +346,10 @@ export const ReplyListContainer: React.FunctionComponent<Props> = (props) => {
                     story={props.story}
                     settings={props.settings}
                     indentLevel={indentLevel + 1}
+                    refreshStream={refreshStream}
                     // Pass through props as commented in `BaseProps`.
                     allowIgnoredTombstoneReveal={
                       props.allowIgnoredTombstoneReveal
-                    }
-                    disableHideIgnoredTombstone={
-                      props.disableHideIgnoredTombstone
                     }
                   />
                 ),
@@ -319,12 +363,12 @@ export const ReplyListContainer: React.FunctionComponent<Props> = (props) => {
                 props.settings,
                 indentLevel,
                 props.allowIgnoredTombstoneReveal,
-                props.disableHideIgnoredTombstone,
                 atLastLevelLocalReply,
                 props.NextReplyListComponent,
               ]
             )
         );
+
   return (
     <ReplyList
       viewer={props.viewer}
@@ -340,8 +384,8 @@ export const ReplyListContainer: React.FunctionComponent<Props> = (props) => {
       viewNewCount={viewNewCount}
       onViewNew={onViewNew}
       allowIgnoredTombstoneReveal={props.allowIgnoredTombstoneReveal}
-      disableHideIgnoredTombstone={props.disableHideIgnoredTombstone}
       showRemoveAnswered={props.showRemoveAnswered}
+      refreshStream={refreshStream}
     />
   );
 };
@@ -384,6 +428,7 @@ function createReplyListContainer(options: {
             orderBy: fragmentVariables.orderBy,
             commentID: props.comment.id,
             flattenReplies: props.flattenReplies,
+            refreshStream: fragmentVariables.refreshStream,
           };
         },
         query,
@@ -418,18 +463,27 @@ const ReplyListContainerLastFlattened = createReplyListContainer({
     `,
     comment: graphql`
       fragment ReplyListContainerLastFlattened_comment on Comment
-        @argumentDefinitions(
-          count: { type: "Int", defaultValue: 10 }
-          cursor: { type: "Cursor" }
-          orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
-        ) {
-        ...ReplyListContainer_comment @relay(mask: false)
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 10 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
+        lastViewerAction
+        status
+        id
+        ...ReplyListContainer_comment @arguments(refreshStream: $refreshStream)
         replies(
           first: $count
           after: $cursor
           orderBy: $orderBy
           flatten: $flattenReplies
-        ) @connection(key: "ReplyList_replies", filters: ["orderBy"]) {
+          refreshStream: $refreshStream
+        )
+          @connection(
+            key: "ReplyList_replies"
+            filters: ["orderBy", "refreshStream"]
+          ) {
           # We use the same key and exclude 'flatten' to essentially
           # have the same connection key as the regular ReplyListContainers.
           ...ReplyListContainer_repliesConnection @relay(mask: false)
@@ -449,10 +503,16 @@ const ReplyListContainerLastFlattened = createReplyListContainer({
       $orderBy: COMMENT_SORT!
       $commentID: ID!
       $flattenReplies: Boolean!
+      $refreshStream: Boolean!
     ) {
       comment(id: $commentID) {
         ...ReplyListContainerLastFlattened_comment
-          @arguments(count: $count, cursor: $cursor, orderBy: $orderBy)
+          @arguments(
+            count: $count
+            cursor: $cursor
+            orderBy: $orderBy
+            refreshStream: $refreshStream
+          )
       }
     }
   `,
@@ -495,7 +555,10 @@ const ReplyListContainerLast = createRelayFragmentContainer<
       }
     `,
     comment: graphql`
-      fragment ReplyListContainerLast_comment on Comment {
+      fragment ReplyListContainerLast_comment on Comment
+      @argumentDefinitions(
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
         ...LocalReplyListContainer_comment @skip(if: $flattenReplies)
         ...ReplyListContainerLastFlattened_comment @include(if: $flattenReplies)
       }
@@ -510,38 +573,46 @@ const ReplyListContainerLast = createRelayFragmentContainer<
   }
 );
 
-const ReplyListContainer3 = createReplyListContainer({
+const ReplyListContainer6 = createReplyListContainer({
   NextReplyListComponent: ReplyListContainerLast,
   fragments: {
     viewer: graphql`
-      fragment ReplyListContainer3_viewer on User {
+      fragment ReplyListContainer6_viewer on User {
         id
         ...ReplyListContainer_viewer @relay(mask: false)
         ...ReplyListContainerLast_viewer
       }
     `,
     settings: graphql`
-      fragment ReplyListContainer3_settings on Settings {
+      fragment ReplyListContainer6_settings on Settings {
         ...ReplyListContainer_settings @relay(mask: false)
         ...ReplyListContainerLast_settings
       }
     `,
     story: graphql`
-      fragment ReplyListContainer3_story on Story {
+      fragment ReplyListContainer6_story on Story {
         ...ReplyListContainer_story @relay(mask: false)
         ...ReplyListContainerLast_story
       }
     `,
     comment: graphql`
-      fragment ReplyListContainer3_comment on Comment
-        @argumentDefinitions(
-          count: { type: "Int", defaultValue: 10 }
-          cursor: { type: "Cursor" }
-          orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
-        ) {
-        ...ReplyListContainer_comment @relay(mask: false)
-        replies(first: $count, after: $cursor, orderBy: $orderBy)
-          @connection(key: "ReplyList_replies") {
+      fragment ReplyListContainer6_comment on Comment
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 10 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
+        lastViewerAction
+        status
+        id
+        ...ReplyListContainer_comment @arguments(refreshStream: $refreshStream)
+        replies(
+          first: $count
+          after: $cursor
+          orderBy: $orderBy
+          refreshStream: $refreshStream
+        ) @connection(key: "ReplyList_replies") {
           ...ReplyListContainer_repliesConnection @relay(mask: false)
           viewNewEdges {
             node {
@@ -551,6 +622,247 @@ const ReplyListContainer3 = createReplyListContainer({
           edges {
             node {
               ...ReplyListContainerLast_comment
+                @arguments(refreshStream: $refreshStream)
+            }
+          }
+        }
+      }
+    `,
+  },
+  query: graphql`
+    # Pagination query to be fetched upon calling 'loadMore'.
+    # Notice that we re-use our fragment, and the shape of this query matches our fragment spec.
+    query ReplyListContainer6PaginationQuery(
+      $count: Int!
+      $cursor: Cursor
+      $orderBy: COMMENT_SORT!
+      $commentID: ID!
+      $flattenReplies: Boolean!
+      $refreshStream: Boolean!
+    ) {
+      comment(id: $commentID) {
+        ...ReplyListContainer6_comment
+          @arguments(
+            count: $count
+            cursor: $cursor
+            orderBy: $orderBy
+            refreshStream: $refreshStream
+          )
+      }
+    }
+  `,
+});
+
+const ReplyListContainer5 = createReplyListContainer({
+  NextReplyListComponent: ReplyListContainer6,
+  fragments: {
+    viewer: graphql`
+      fragment ReplyListContainer5_viewer on User {
+        id
+        ...ReplyListContainer_viewer @relay(mask: false)
+        ...ReplyListContainer6_viewer
+      }
+    `,
+    settings: graphql`
+      fragment ReplyListContainer5_settings on Settings {
+        ...ReplyListContainer_settings @relay(mask: false)
+        ...ReplyListContainer6_settings
+      }
+    `,
+    story: graphql`
+      fragment ReplyListContainer5_story on Story {
+        ...ReplyListContainer_story @relay(mask: false)
+        ...ReplyListContainer6_story
+      }
+    `,
+    comment: graphql`
+      fragment ReplyListContainer5_comment on Comment
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 10 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
+        lastViewerAction
+        status
+        id
+        ...ReplyListContainer_comment @arguments(refreshStream: $refreshStream)
+        replies(
+          first: $count
+          after: $cursor
+          orderBy: $orderBy
+          refreshStream: $refreshStream
+        ) @connection(key: "ReplyList_replies") {
+          ...ReplyListContainer_repliesConnection @relay(mask: false)
+          viewNewEdges {
+            node {
+              ...ReplyListContainer6_comment
+            }
+          }
+          edges {
+            node {
+              ...ReplyListContainer6_comment
+                @arguments(refreshStream: $refreshStream)
+            }
+          }
+        }
+      }
+    `,
+  },
+  query: graphql`
+    # Pagination query to be fetched upon calling 'loadMore'.
+    # Notice that we re-use our fragment, and the shape of this query matches our fragment spec.
+    query ReplyListContainer5PaginationQuery(
+      $count: Int!
+      $cursor: Cursor
+      $orderBy: COMMENT_SORT!
+      $commentID: ID!
+      $flattenReplies: Boolean!
+      $refreshStream: Boolean!
+    ) {
+      comment(id: $commentID) {
+        ...ReplyListContainer5_comment
+          @arguments(
+            count: $count
+            cursor: $cursor
+            orderBy: $orderBy
+            refreshStream: $refreshStream
+          )
+      }
+    }
+  `,
+});
+
+const ReplyListContainer4 = createReplyListContainer({
+  NextReplyListComponent: ReplyListContainer5,
+  fragments: {
+    viewer: graphql`
+      fragment ReplyListContainer4_viewer on User {
+        id
+        ...ReplyListContainer_viewer @relay(mask: false)
+        ...ReplyListContainer5_viewer
+      }
+    `,
+    settings: graphql`
+      fragment ReplyListContainer4_settings on Settings {
+        ...ReplyListContainer_settings @relay(mask: false)
+        ...ReplyListContainer5_settings
+      }
+    `,
+    story: graphql`
+      fragment ReplyListContainer4_story on Story {
+        ...ReplyListContainer_story @relay(mask: false)
+        ...ReplyListContainer5_story
+      }
+    `,
+    comment: graphql`
+      fragment ReplyListContainer4_comment on Comment
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 10 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
+        lastViewerAction
+        status
+        id
+        ...ReplyListContainer_comment @arguments(refreshStream: $refreshStream)
+        replies(
+          first: $count
+          after: $cursor
+          orderBy: $orderBy
+          refreshStream: $refreshStream
+        ) @connection(key: "ReplyList_replies") {
+          ...ReplyListContainer_repliesConnection @relay(mask: false)
+          viewNewEdges {
+            node {
+              ...ReplyListContainer5_comment
+            }
+          }
+          edges {
+            node {
+              ...ReplyListContainer5_comment
+                @arguments(refreshStream: $refreshStream)
+            }
+          }
+        }
+      }
+    `,
+  },
+  query: graphql`
+    # Pagination query to be fetched upon calling 'loadMore'.
+    # Notice that we re-use our fragment, and the shape of this query matches our fragment spec.
+    query ReplyListContainer4PaginationQuery(
+      $count: Int!
+      $cursor: Cursor
+      $orderBy: COMMENT_SORT!
+      $commentID: ID!
+      $flattenReplies: Boolean!
+      $refreshStream: Boolean!
+    ) {
+      comment(id: $commentID) {
+        ...ReplyListContainer4_comment
+          @arguments(
+            count: $count
+            cursor: $cursor
+            orderBy: $orderBy
+            refreshStream: $refreshStream
+          )
+      }
+    }
+  `,
+});
+
+const ReplyListContainer3 = createReplyListContainer({
+  NextReplyListComponent: ReplyListContainer4,
+  fragments: {
+    viewer: graphql`
+      fragment ReplyListContainer3_viewer on User {
+        id
+        ...ReplyListContainer_viewer @relay(mask: false)
+        ...ReplyListContainer4_viewer
+      }
+    `,
+    settings: graphql`
+      fragment ReplyListContainer3_settings on Settings {
+        ...ReplyListContainer_settings @relay(mask: false)
+        ...ReplyListContainer4_settings
+      }
+    `,
+    story: graphql`
+      fragment ReplyListContainer3_story on Story {
+        ...ReplyListContainer_story @relay(mask: false)
+        ...ReplyListContainer4_story
+      }
+    `,
+    comment: graphql`
+      fragment ReplyListContainer3_comment on Comment
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 10 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
+        lastViewerAction
+        status
+        id
+        ...ReplyListContainer_comment @arguments(refreshStream: $refreshStream)
+        replies(
+          first: $count
+          after: $cursor
+          orderBy: $orderBy
+          refreshStream: $refreshStream
+        ) @connection(key: "ReplyList_replies") {
+          ...ReplyListContainer_repliesConnection @relay(mask: false)
+          viewNewEdges {
+            node {
+              ...ReplyListContainer4_comment
+            }
+          }
+          edges {
+            node {
+              ...ReplyListContainer4_comment
+                @arguments(refreshStream: $refreshStream)
             }
           }
         }
@@ -566,10 +878,16 @@ const ReplyListContainer3 = createReplyListContainer({
       $orderBy: COMMENT_SORT!
       $commentID: ID!
       $flattenReplies: Boolean!
+      $refreshStream: Boolean!
     ) {
       comment(id: $commentID) {
         ...ReplyListContainer3_comment
-          @arguments(count: $count, cursor: $cursor, orderBy: $orderBy)
+          @arguments(
+            count: $count
+            cursor: $cursor
+            orderBy: $orderBy
+            refreshStream: $refreshStream
+          )
       }
     }
   `,
@@ -599,14 +917,22 @@ const ReplyListContainer2 = createReplyListContainer({
     `,
     comment: graphql`
       fragment ReplyListContainer2_comment on Comment
-        @argumentDefinitions(
-          count: { type: "Int", defaultValue: 10 }
-          cursor: { type: "Cursor" }
-          orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
-        ) {
-        ...ReplyListContainer_comment @relay(mask: false)
-        replies(first: $count, after: $cursor, orderBy: $orderBy)
-          @connection(key: "ReplyList_replies") {
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 10 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
+        lastViewerAction
+        status
+        id
+        ...ReplyListContainer_comment @arguments(refreshStream: $refreshStream)
+        replies(
+          first: $count
+          after: $cursor
+          orderBy: $orderBy
+          refreshStream: $refreshStream
+        ) @connection(key: "ReplyList_replies") {
           ...ReplyListContainer_repliesConnection @relay(mask: false)
           viewNewEdges {
             node {
@@ -616,6 +942,7 @@ const ReplyListContainer2 = createReplyListContainer({
           edges {
             node {
               ...ReplyListContainer3_comment
+                @arguments(refreshStream: $refreshStream)
             }
           }
         }
@@ -631,10 +958,16 @@ const ReplyListContainer2 = createReplyListContainer({
       $orderBy: COMMENT_SORT!
       $commentID: ID!
       $flattenReplies: Boolean!
+      $refreshStream: Boolean!
     ) {
       comment(id: $commentID) {
         ...ReplyListContainer2_comment
-          @arguments(count: $count, cursor: $cursor, orderBy: $orderBy)
+          @arguments(
+            count: $count
+            cursor: $cursor
+            orderBy: $orderBy
+            refreshStream: $refreshStream
+          )
       }
     }
   `,
@@ -664,14 +997,22 @@ const ReplyListContainer1 = createReplyListContainer({
     `,
     comment: graphql`
       fragment ReplyListContainer1_comment on Comment
-        @argumentDefinitions(
-          count: { type: "Int", defaultValue: 10 }
-          cursor: { type: "Cursor" }
-          orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
-        ) {
-        ...ReplyListContainer_comment @relay(mask: false)
-        replies(first: $count, after: $cursor, orderBy: $orderBy)
-          @connection(key: "ReplyList_replies") {
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 10 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_ASC }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
+        lastViewerAction
+        status
+        id
+        ...ReplyListContainer_comment @arguments(refreshStream: $refreshStream)
+        replies(
+          first: $count
+          after: $cursor
+          orderBy: $orderBy
+          refreshStream: $refreshStream
+        ) @connection(key: "ReplyList_replies") {
           ...ReplyListContainer_repliesConnection @relay(mask: false)
           viewNewEdges {
             node {
@@ -681,6 +1022,7 @@ const ReplyListContainer1 = createReplyListContainer({
           edges {
             node {
               ...ReplyListContainer2_comment
+                @arguments(refreshStream: $refreshStream)
             }
           }
         }
@@ -696,10 +1038,16 @@ const ReplyListContainer1 = createReplyListContainer({
       $orderBy: COMMENT_SORT!
       $commentID: ID!
       $flattenReplies: Boolean!
+      $refreshStream: Boolean!
     ) {
       comment(id: $commentID) {
         ...ReplyListContainer1_comment
-          @arguments(count: $count, cursor: $cursor, orderBy: $orderBy)
+          @arguments(
+            count: $count
+            cursor: $cursor
+            orderBy: $orderBy
+            refreshStream: $refreshStream
+          )
       }
     }
   `,

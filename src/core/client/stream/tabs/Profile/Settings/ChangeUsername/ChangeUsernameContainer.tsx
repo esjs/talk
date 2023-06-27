@@ -4,7 +4,9 @@ import { FORM_ERROR, FormApi } from "final-form";
 import React, {
   FunctionComponent,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Field, Form } from "react-final-form";
@@ -62,6 +64,7 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
   viewer,
   settings,
 }) => {
+  const newUsernameRef = useRef<HTMLInputElement>(null);
   const emitShowEditUsernameDialog = useViewerEvent(
     ShowEditUsernameDialogEvent
   );
@@ -75,9 +78,10 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
   }, [setShowEditForm, showEditForm]);
   const updateUsername = useMutation(UpdateUsernameMutation);
 
-  const closeSuccessMessage = useCallback(() => setShowSuccessMessage(false), [
-    setShowEditForm,
-  ]);
+  const closeSuccessMessage = useCallback(
+    () => setShowSuccessMessage(false),
+    [setShowEditForm]
+  );
 
   const canChangeLocalAuth = useMemo(() => {
     if (!settings.accountFeatures.changeUsername) {
@@ -156,6 +160,12 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
     year: "numeric",
   });
 
+  useEffect(() => {
+    if (newUsernameRef.current) {
+      newUsernameRef.current.focus();
+    }
+  });
+
   return (
     <HorizontalGutter
       spacing={3}
@@ -184,7 +194,10 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
               !canChangeUsername || showSuccessMessage,
           })}
         >
-          <Localized id="profile-changeUsername-change">
+          <Localized
+            id="profile-changeUsername-change"
+            attrs={{ "aria-label": true }}
+          >
             <Button
               className={cn(
                 CLASSES.myUsername.editButton,
@@ -195,6 +208,7 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
               color="primary"
               onClick={toggleEditForm}
               disabled={!canChangeUsername}
+              aria-label="Change username"
             >
               Change
             </Button>
@@ -226,13 +240,15 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
       {!canChangeUsername && !showSuccessMessage && (
         <div data-testid="profile-changeUsername-cantChange">
           <Localized
-            date={canChangeUsernameDate}
             id="profile-changeUsername-youChangedYourUsernameWithin"
-            $value={FREQUENCYSCALED.scaled}
-            $unit={FREQUENCYSCALED.unit}
-            $nextUpdate={
-              canChangeUsernameDate ? formatter(canChangeUsernameDate) : null
-            }
+            vars={{
+              date: canChangeUsernameDate || "",
+              value: FREQUENCYSCALED.scaled,
+              unit: FREQUENCYSCALED.unit,
+              nextUpdate: canChangeUsernameDate
+                ? formatter(canChangeUsernameDate)
+                : "",
+            }}
           >
             <div className={cn(styles.tooSoon, CLASSES.myUsername.tooSoon)}>
               You changed your username within the last {FREQUENCYSCALED.scaled}{" "}
@@ -254,8 +270,10 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
             </Localized>
             <Localized
               id="profile-changeUsername-desc-text"
-              $value={FREQUENCYSCALED.scaled}
-              $unit={FREQUENCYSCALED.unit}
+              vars={{
+                value: FREQUENCYSCALED.scaled,
+                unit: FREQUENCYSCALED.unit,
+              }}
             >
               <div
                 className={cn(
@@ -301,6 +319,7 @@ const ChangeUsernameContainer: FunctionComponent<Props> = ({
                               id={input.name}
                               data-testid="profile-changeUsername-username"
                               color={streamColorFromMeta(meta)}
+                              ref={newUsernameRef}
                             />
                             <ValidationMessage
                               className={CLASSES.validationMessage}

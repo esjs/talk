@@ -26,7 +26,10 @@ function isNodeIDInRepliesConnection(
     .some((edge) => edge.getLinkedRecord("node")?.getDataID() === id);
 }
 
-function isCommentInsideParentRepliesConnection(comment: RecordProxy) {
+function isCommentInsideParentRepliesConnection(
+  comment: RecordProxy,
+  refreshStream?: boolean | null
+) {
   const parent = comment.getLinkedRecord("parent");
   if (!parent) {
     return false;
@@ -36,7 +39,7 @@ function isCommentInsideParentRepliesConnection(comment: RecordProxy) {
   const repliesConnection = ConnectionHandler.getConnection(
     parent,
     "ReplyList_replies",
-    { orderBy: GQLCOMMENT_SORT.CREATED_AT_ASC }
+    { orderBy: GQLCOMMENT_SORT.CREATED_AT_ASC, refreshStream }
   )!;
   if (!repliesConnection) {
     return false;
@@ -74,6 +77,7 @@ export function determineDepthTillStory(
   storyID: string,
   orderBy: string,
   storyConnectionKey: string,
+  refreshStream?: boolean | null,
   tag?: string
 ) {
   const story = store.get(storyID)!;
@@ -83,6 +87,7 @@ export function determineDepthTillStory(
     {
       orderBy,
       tag,
+      refreshStream,
     }
   )!;
 
@@ -91,9 +96,8 @@ export function determineDepthTillStory(
     return 0;
   }
 
-  const firstParent: RecordProxy | null | undefined = comment.getLinkedRecord(
-    "parent"
-  );
+  const firstParent: RecordProxy | null | undefined =
+    comment.getLinkedRecord("parent");
   // When first parent is null and it is not in the story connection: Return null;
   if (!firstParent) {
     return null;
@@ -115,7 +119,7 @@ export function determineDepthTillStory(
       }
       // Return depth otherwise.
       return depth;
-    } else if (isCommentInsideParentRepliesConnection(cur)) {
+    } else if (isCommentInsideParentRepliesConnection(cur, refreshStream)) {
       // Current comment is inside the replies connection of the parent.
       depth++;
     } else {
@@ -133,15 +137,15 @@ export function determineDepthTillStory(
 export function determineDepthTillAncestor(
   store: RecordSourceSelectorProxy<unknown>,
   comment: RecordProxy,
+  refreshStream?: boolean | null,
   ancestorID?: string | null
 ) {
   // Already ancestor, return 0;
   if (comment.getDataID() === ancestorID) {
     return 0;
   }
-  const firstParent: RecordProxy | null | undefined = comment.getLinkedRecord(
-    "parent"
-  );
+  const firstParent: RecordProxy | null | undefined =
+    comment.getLinkedRecord("parent");
   if (!firstParent) {
     // It's a top level comment, so can't determine depth till ancestor.
     return null;
@@ -162,7 +166,7 @@ export function determineDepthTillAncestor(
   while (cur) {
     const parent: RecordProxy | null = cur.getLinkedRecord("parent");
     if (parent !== null) {
-      if (!isCommentInsideParentRepliesConnection(cur)) {
+      if (!isCommentInsideParentRepliesConnection(cur, refreshStream)) {
         // Comment is not inside parents replies connection.
         return null;
       }

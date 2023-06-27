@@ -3,6 +3,7 @@ import { DateTime } from "luxon";
 
 import isNonNullArray from "coral-common/helpers/isNonNullArray";
 import { Config } from "coral-server/config";
+import { CommentCache } from "coral-server/data/cache/commentCache";
 import { MongoContext } from "coral-server/data/context";
 import {
   CannotMergeAnArchivedStory,
@@ -23,6 +24,7 @@ import {
   calculateTotalCommentCount,
   mergeCommentModerationQueueCount,
   mergeCommentStatusCount,
+  mergeCommentTagCounts,
   mergeManyCommentStories,
   removeStoryComments,
 } from "coral-server/models/comment";
@@ -58,6 +60,7 @@ import {
   Tenant,
 } from "coral-server/models/tenant";
 import { retrieveUser } from "coral-server/models/user";
+import { LoadCacheQueue } from "coral-server/queue/tasks/loadCache";
 import { ScraperQueue } from "coral-server/queue/tasks/scraper";
 import { findSiteByURL } from "coral-server/services/sites";
 import { scrape } from "coral-server/services/stories/scraper";
@@ -82,6 +85,8 @@ export type FindOrCreateStory = FindOrCreateStoryInput;
 export async function findOrCreate(
   mongo: MongoContext,
   tenant: Tenant,
+  cache: CommentCache,
+  queue: LoadCacheQueue,
   broker: CoralEventPublisherBroker,
   input: FindOrCreateStory,
   scraper: ScraperQueue,
@@ -93,7 +98,14 @@ export async function findOrCreate(
   }
 
   let siteID = null;
-  if (input.url) {
+  if (input.id) {
+    const story = await findStory(mongo, tenant.id, { id: input.id });
+    if (story) {
+      siteID = story.siteID;
+    }
+  }
+
+  if (input.url && siteID === null) {
     const site = await findSiteByURL(mongo, tenant.id, input.url);
     // If the URL is provided, and the url is not associated with a site, then refuse
     // to create the Asset.
@@ -118,6 +130,21 @@ export async function findOrCreate(
   }
 
   if (wasUpserted) {
+    logger.info(
+      {
+        upserted: {
+          id: story.id,
+          url: story.url,
+        },
+        input: {
+          id: input.id,
+          url: input.url,
+          mode: input.mode,
+        },
+      },
+      "story upserted"
+    );
+
     StoryCreatedCoralEvent.publish(broker, {
       storyID: story.id,
       storyURL: story.url,
@@ -125,6 +152,14 @@ export async function findOrCreate(
     }).catch((err) => {
       logger.error({ err }, "could not publish story created event");
     });
+  }
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    const storyIsCached = await cache.isCached(tenant.id, story.id);
+    if (!storyIsCached && !story.isArchived && !story.isArchiving) {
+      await queue.add({ tenantID: tenant.id, storyID: story.id });
+    }
   }
 
   if (tenant.stories.scraping.enabled && !story.metadata && !story.scrapedAt) {
@@ -167,9 +202,8 @@ export async function remove(
 
   if (includeComments) {
     // Remove the moderation actions associated with the comments we just removed.
-    const {
-      deletedCount: removedModerationActions,
-    } = await removeStoryModerationActions(mongo, tenant.id, story.id);
+    const { deletedCount: removedModerationActions } =
+      await removeStoryModerationActions(mongo, tenant.id, story.id);
 
     log.debug(
       { removedModerationActions },
@@ -177,9 +211,8 @@ export async function remove(
     );
 
     if (mongo.archive) {
-      const {
-        deletedCount: removedArchivedModerationActions,
-      } = await removeStoryModerationActions(mongo, tenant.id, story.id, true);
+      const { deletedCount: removedArchivedModerationActions } =
+        await removeStoryModerationActions(mongo, tenant.id, story.id, true);
 
       log.debug(
         { removedArchivedModerationActions },
@@ -220,9 +253,8 @@ export async function remove(
     log.debug({ removedComments }, "removed comments while deleting story");
 
     if (mongo.archive) {
-      const {
-        deletedCount: removedArchivedComments,
-      } = await removeStoryComments(mongo, tenant.id, story.id, true);
+      const { deletedCount: removedArchivedComments } =
+        await removeStoryComments(mongo, tenant.id, story.id, true);
 
       log.debug(
         { removedArchivedComments },
@@ -467,6 +499,9 @@ export async function merge(
     ),
     action: mergeCommentActionCounts(
       ...sourceStories.map((s) => s.commentCounts.action)
+    ),
+    tags: mergeCommentTagCounts(
+      ...sourceStories.map((s) => s.commentCounts.tags)
     ),
   };
 

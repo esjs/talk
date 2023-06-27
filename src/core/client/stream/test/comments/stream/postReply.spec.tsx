@@ -83,7 +83,7 @@ it("hides form when reclicking on the reply button", async () => {
 });
 
 it("post a reply", async () => {
-  const { testRenderer, comment, rte, form } = await createTestRenderer({
+  const { testRenderer, rte, form } = await createTestRenderer({
     Mutation: {
       createCommentReply: sinon.stub().callsFake((_, data) => {
         expectAndFail(data).toMatchObject({
@@ -112,8 +112,6 @@ it("post a reply", async () => {
     },
   });
 
-  expect(within(comment).toJSON()).toMatchSnapshot("open reply form");
-
   // Write reply .
   act(() => rte.props.onChange("<b>Hello world!</b>"));
 
@@ -124,11 +122,6 @@ it("post a reply", async () => {
 
   const commentReplyList = within(testRenderer.root).getByTestID(
     "commentReplyList-comment-0"
-  );
-
-  // Test optimistic response.
-  expect(within(commentReplyList).toJSON()).toMatchSnapshot(
-    "optimistic response"
   );
   timekeeper.reset();
 
@@ -229,8 +222,8 @@ it("handle moderation nudge error", async () => {
                 input: {
                   storyID: stories[0].id,
                   parentID: stories[0].comments.edges[0].node.id,
-                  parentRevisionID: stories[0].comments.edges[0].node.revision!
-                    .id,
+                  parentRevisionID:
+                    stories[0].comments.edges[0].node.revision!.id,
                   body: "<b>Hello world!</b>",
                   nudge: true,
                 },

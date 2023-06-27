@@ -15,8 +15,10 @@ import InReplyTo from "./InReplyTo";
 import styles from "./Comment.css";
 
 export interface CommentProps {
+  id: string;
+  showCommentID: boolean;
   className?: string;
-  username: React.ReactNode;
+  usernameEl: React.ReactNode;
   body: string | null;
   rating?: number | null;
   createdAt: string;
@@ -48,7 +50,7 @@ const Comment: FunctionComponent<CommentProps> = (props) => {
         className={CLASSES.comment.topBar.$root}
       >
         <Flex alignItems="center" wrap>
-          {props.username && (
+          {props.usernameEl && (
             <MatchMedia lteWidth="mobile">
               {(matches) => (
                 <div
@@ -56,7 +58,7 @@ const Comment: FunctionComponent<CommentProps> = (props) => {
                     [styles.usernameFullRow]: matches,
                   })}
                 >
-                  {props.username}
+                  {props.usernameEl}
                 </div>
               )}
             </MatchMedia>
@@ -101,6 +103,7 @@ const Comment: FunctionComponent<CommentProps> = (props) => {
       {props.rating && <StarRating rating={props.rating} />}
 
       <HorizontalGutter size="oneAndAHalf">
+        {props.showCommentID && <div>{props.id}</div>}
         <HTMLContent className={CLASSES.comment.content}>
           {props.body || ""}
         </HTMLContent>

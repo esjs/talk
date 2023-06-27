@@ -35,25 +35,26 @@ interface Props {
   viewer: UnansweredCommentsTabContainer_viewer | null;
   relay: RelayPaginationProp;
   flattenReplies: boolean;
+  refreshStream: boolean | null;
 }
 
 export const UnansweredCommentsTabContainer: FunctionComponent<Props> = (
   props
 ) => {
-  const [{ commentsOrderBy, keyboardShortcutsConfig }] = useLocal<
-    UnansweredCommentsTabContainerLocal
-  >(
-    graphql`
-      fragment UnansweredCommentsTabContainerLocal on Local {
-        commentsOrderBy
-        keyboardShortcutsConfig {
-          key
-          source
-          reverse
+  const [{ commentsOrderBy, keyboardShortcutsConfig, refreshStream }] =
+    useLocal<UnansweredCommentsTabContainerLocal>(
+      graphql`
+        fragment UnansweredCommentsTabContainerLocal on Local {
+          commentsOrderBy
+          keyboardShortcutsConfig {
+            key
+            source
+            reverse
+          }
+          refreshStream
         }
-      }
-    `
-  );
+      `
+    );
 
   const subscribeToCommentEntered = useSubscription(CommentEnteredSubscription);
 
@@ -90,6 +91,7 @@ export const UnansweredCommentsTabContainer: FunctionComponent<Props> = (
       orderBy: commentsOrderBy,
       storyConnectionKey: "UnansweredStream_comments",
       tag: GQLTAG.UNANSWERED,
+      refreshStream,
     });
 
     return () => {
@@ -101,6 +103,7 @@ export const UnansweredCommentsTabContainer: FunctionComponent<Props> = (
     live,
     props.story.id,
     subscribeToCommentEntered,
+    refreshStream,
   ]);
 
   const [loadMore, isLoadingMore] = useLoadMore(props.relay, 20);
@@ -120,10 +123,10 @@ export const UnansweredCommentsTabContainer: FunctionComponent<Props> = (
     }
   }, [loadMore, beginLoadMoreEvent, props.story.id]);
   const viewMore = useMutation(UnansweredCommentsTabViewNewMutation);
-  const onViewMore = useCallback(() => viewMore({ storyID: props.story.id }), [
-    props.story.id,
-    viewMore,
-  ]);
+  const onViewMore = useCallback(
+    () => viewMore({ storyID: props.story.id }),
+    [props.story.id, viewMore]
+  );
   const comments = props.story.comments.edges.map((edge) => edge.node);
   const viewNewCount =
     (props.story.comments.viewNewEdges &&
@@ -140,7 +143,7 @@ export const UnansweredCommentsTabContainer: FunctionComponent<Props> = (
             className={CLASSES.allCommentsTabPane.viewNewButton}
             fullWidth
           >
-            <Localized id="qa-viewNew" $count={viewNewCount}>
+            <Localized id="qa-viewNew" vars={{ count: viewNewCount }}>
               <span>View {viewNewCount} New Questions</span>
             </Localized>
           </Button>
@@ -165,6 +168,7 @@ export const UnansweredCommentsTabContainer: FunctionComponent<Props> = (
               story={props.story}
               settings={props.settings}
               isLast={index === comments.length - 1}
+              refreshStream={refreshStream}
             />
           ))}
         {props.relay.hasMore() && (
@@ -202,12 +206,13 @@ const enhanced = withPaginationContainer<
   {
     story: graphql`
       fragment UnansweredCommentsTabContainer_story on Story
-        @argumentDefinitions(
-          count: { type: "Int", defaultValue: 20 }
-          cursor: { type: "Cursor" }
-          orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_DESC }
-          tag: { type: "TAG!", defaultValue: UNANSWERED }
-        ) {
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 20 }
+        cursor: { type: "Cursor" }
+        orderBy: { type: "COMMENT_SORT!", defaultValue: CREATED_AT_DESC }
+        tag: { type: "TAG!", defaultValue: UNANSWERED }
+        refreshStream: { type: "Boolean", defaultValue: false }
+      ) {
         id
         isClosed
         settings {
@@ -220,19 +225,26 @@ const enhanced = withPaginationContainer<
             UNANSWERED
           }
         }
-        comments(first: $count, after: $cursor, orderBy: $orderBy, tag: $tag)
-          @connection(key: "UnansweredStream_comments") {
+        comments(
+          first: $count
+          after: $cursor
+          orderBy: $orderBy
+          tag: $tag
+          refreshStream: $refreshStream
+        ) @connection(key: "UnansweredStream_comments") {
           viewNewEdges {
             cursor
             node {
               id
               ...UnansweredCommentsTabCommentContainer_comment
+                @arguments(refreshStream: $refreshStream)
             }
           }
           edges {
             node {
               id
               ...UnansweredCommentsTabCommentContainer_comment
+                @arguments(refreshStream: $refreshStream)
             }
           }
         }
@@ -277,6 +289,7 @@ const enhanced = withPaginationContainer<
         storyID: props.story.id,
         tag: GQLTAG.UNANSWERED,
         flattenReplies: props.flattenReplies,
+        refreshStream: props.refreshStream,
       };
     },
     query: graphql`
@@ -288,10 +301,16 @@ const enhanced = withPaginationContainer<
         $orderBy: COMMENT_SORT!
         $storyID: ID
         $flattenReplies: Boolean!
+        $refreshStream: Boolean
       ) {
         story(id: $storyID) {
           ...UnansweredCommentsTabContainer_story
-            @arguments(count: $count, cursor: $cursor, orderBy: $orderBy)
+            @arguments(
+              count: $count
+              cursor: $cursor
+              orderBy: $orderBy
+              refreshStream: $refreshStream
+            )
         }
       }
     `,

@@ -1,5 +1,12 @@
 import { Localized } from "@fluent/react/compat";
-import React, { FunctionComponent, useCallback, useRef, useState } from "react";
+import key from "keymaster";
+import React, {
+  FunctionComponent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import AutoLoadMore from "coral-admin/components/AutoLoadMore";
 import ConversationModal from "coral-admin/components/ConversationModal";
@@ -48,13 +55,20 @@ const Queue: FunctionComponent<Props> = ({
   const { window } = useCoralContext();
   const [userDrawerVisible, setUserDrawerVisible] = useState(false);
   const [userDrawerId, setUserDrawerID] = useState("");
-  const [selectedComment, setSelectedComment] = useState<number | null>(0);
+  const [selectedComment, setSelectedComment] = useState<number | null>(-1);
   const [singleView, setSingleView] = useState(false);
-  const [conversationModalVisible, setConversationModalVisible] = useState(
-    false
-  );
+  const [conversationModalVisible, setConversationModalVisible] =
+    useState(false);
   const [conversationCommentID, setConversationCommentID] = useState("");
+  const [hasModerated, setHasModerated] = useState(false);
   const memoize = useMemoizer();
+
+  // So we can register hotkeys for the first comment without immediately pulling focus
+  useEffect(() => {
+    if (comments.length > 0) {
+      key.setScope(comments[0].id);
+    }
+  }, []);
 
   const toggleView = useCallback(() => {
     if (!singleView) {
@@ -72,33 +86,38 @@ const Queue: FunctionComponent<Props> = ({
   const commentsRef = useRef<Props["comments"]>(comments);
   commentsRef.current = comments;
 
-  const selectNext = useCallback(() => {
-    const index = selectedCommentRef.current || 0;
-    const nextComment = commentsRef.current[index + 1];
-    if (nextComment) {
-      setSelectedComment(index + 1);
-      const container: HTMLElement | null = window.document.getElementById(
-        `moderate-comment-${nextComment.id}`
-      );
-      if (container) {
-        container.scrollIntoView();
+  useEffect(() => {
+    if (selectedComment !== null && commentsRef.current.length > 0) {
+      // We've moderated the last comment via hotkey
+      if (selectedComment >= commentsRef.current.length) {
+        setSelectedComment(commentsRef.current.length - 1);
+        // We've moderated the first comment via hotkey
+      } else if (selectedComment < 0 && hasModerated) {
+        setSelectedComment(0);
       }
     }
-  }, [window.document]);
+  }, [commentsRef.current.length, selectedComment, hasModerated]);
 
-  const selectPrev = useCallback(() => {
-    const index = selectedCommentRef.current || 0;
-    const prevComment = commentsRef.current[index - 1];
-    if (prevComment) {
-      setSelectedComment(index - 1);
-      const container: HTMLElement | null = window.document.getElementById(
-        `moderate-comment-${prevComment.id}`
-      );
-      if (container) {
-        container.scrollIntoView();
+  const varyComment = useCallback(
+    (delta: number) => {
+      const index = selectedCommentRef.current || 0;
+      const targetComment = commentsRef.current[index + delta];
+      if (targetComment) {
+        setSelectedComment(index + delta);
+        const container: HTMLElement | null = window.document.getElementById(
+          `moderate-comment-${targetComment.id}`
+        );
+        if (container) {
+          container.scrollIntoView();
+        }
       }
-    }
-  }, [window.document]);
+    },
+    [window.document]
+  );
+
+  const selectNext = useCallback(() => varyComment(1), [varyComment]);
+
+  const selectPrev = useCallback(() => varyComment(-1), [varyComment]);
 
   const onSetUserDrawerUserID = useCallback((userID: string) => {
     setUserDrawerID(userID);
@@ -135,7 +154,10 @@ const Queue: FunctionComponent<Props> = ({
     <HorizontalGutter className={styles.root} size="double">
       {Boolean(viewNewCount && viewNewCount > 0) && (
         <Flex justifyContent="center" className={styles.viewNewButtonContainer}>
-          <Localized id="moderate-queue-viewNew" $count={viewNewCount}>
+          <Localized
+            id="moderate-queue-viewNew"
+            vars={{ count: viewNewCount! }}
+          >
             <Button onClick={onViewNew} className={styles.viewNewButton}>
               View {viewNewCount} new comments
             </Button>
@@ -161,6 +183,7 @@ const Queue: FunctionComponent<Props> = ({
             selected={selectedComment === i}
             selectPrev={selectPrev}
             selectNext={selectNext}
+            onModerated={() => setHasModerated(true)}
           />
         )}
       />

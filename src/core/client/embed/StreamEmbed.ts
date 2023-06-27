@@ -10,6 +10,7 @@ import {
   withLiveCommentCount,
   withSetCommentID,
 } from "./decorators";
+import injectCommentEmbedScriptIfNeeded from "./injectCommentEmbedScriptIfNeeded";
 import injectCountScriptIfNeeded from "./injectCountScriptIfNeeded";
 import onIntersect, { OnIntersectCancellation } from "./onIntersect";
 
@@ -48,6 +49,7 @@ export interface StreamEmbedConfig {
   refreshAccessToken?: RefreshAccessTokenCallback;
   amp?: boolean;
   graphQLSubscriptionURI?: string;
+  customScrollContainer?: HTMLElement;
 }
 export class StreamEmbed {
   /**
@@ -128,6 +130,9 @@ export class StreamEmbed {
 
     // Detect if comment count injection is needed and add the count script.
     injectCountScriptIfNeeded(config.rootURL, this.ts);
+
+    // Detect if comment embed injection is needed and add the comment embed script.
+    injectCommentEmbedScriptIfNeeded(config, this.ts);
 
     if (config.commentID) {
       // Delay emit of `showPermalink` event to allow user enough time to setup
@@ -371,6 +376,7 @@ export class StreamEmbed {
       // the stream will cause stream pages to cache bust.
       version: process.env.TALK_VERSION ? process.env.TALK_VERSION : "dev",
       defaultFontsCSSURL: this.defaultFontsCSSURL,
+      customScrollContainer: this.config.customScrollContainer,
     });
   }
 

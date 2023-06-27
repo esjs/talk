@@ -25,6 +25,13 @@ Any related Github issue should be linked by adding its URL to this section.
 
 -->
 
+## These changes will impact:
+
+- [ ] commenters
+- [ ] moderators
+- [ ] admins
+- [ ] developers
+
 ## What changes to the GraphQL/Database Schema does this PR introduce?
 
 <!--
@@ -38,11 +45,11 @@ simply write "None".
 
 -->
 
-## Does this PR introduce any new environment variables or feature flags? 
+## Does this PR introduce any new environment variables or feature flags?
 
-<!-- 
+<!--
 
-In this section, note any new environment variables or feature flags introduced. Ensure you add them to internal documentation when your PR is merged. 
+In this section, note any new environment variables or feature flags introduced. Ensure you add them to internal documentation when your PR is merged.
 
 -->
 
@@ -62,8 +69,14 @@ In this section, you should be describing any manual testing that can be used to
 verify features introduced or bugs fixed in this PR.
 
  -->
- 
- 
+
+## Where any tests migrated to React Testing Library?
+
+<!--
+In this section, you should list the paths to and test names of any tests that were migrated to RTL.
+
+ -->
+
 ## How do we deploy this PR?
 
 <!--

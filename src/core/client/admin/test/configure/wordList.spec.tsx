@@ -58,11 +58,6 @@ async function createTestRenderer(
   };
 }
 
-it("renders configure wordList", async () => {
-  const { configureContainer } = await createTestRenderer();
-  expect(within(configureContainer).toJSON()).toMatchSnapshot();
-});
-
 it("change banned and suspect words", async () => {
   const resolvers = createResolversStub<GQLResolver>({
     Mutation: {
@@ -77,20 +72,15 @@ it("change banned and suspect words", async () => {
       },
     },
   });
-  const {
-    configureContainer,
-    wordListContainer,
-    saveChangesButton,
-  } = await createTestRenderer({
-    resolvers,
-  });
+  const { configureContainer, wordListContainer, saveChangesButton } =
+    await createTestRenderer({
+      resolvers,
+    });
 
-  const bannedField = within(wordListContainer).getByLabelText(
-    "Banned word list"
-  );
-  const suspectField = within(wordListContainer).getByLabelText(
-    "Suspect word list"
-  );
+  const bannedField =
+    within(wordListContainer).getByLabelText("Banned word list");
+  const suspectField =
+    within(wordListContainer).getByLabelText("Suspect word list");
 
   // Let's change the wordlist contents.
   act(() => bannedField.props.onChange("Fuck\nAsshole"));

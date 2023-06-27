@@ -30,28 +30,36 @@ const UserBoxAuthenticated: FunctionComponent<UserBoxAuthenticatedProps> = (
     >
       <section className={CLASSES.viewerBox.$root} aria-label="Authentication">
         <Localized id="general-userBoxAuthenticated-signedIn">
-          <div className={styles.text}>Signed in as</div>
+          <div className={cn(styles.text, CLASSES.viewerBox.usernameLabel)}>
+            Signed in as
+          </div>
         </Localized>
-        <Flex alignItems="flex-end" wrap>
+        <Flex
+          alignItems="flex-end"
+          wrap
+          className={CLASSES.viewerBox.usernameContainer}
+        >
           <Username />
           {props.showLogoutButton && (
             <Localized
               id="general-userBoxAuthenticated-notYou"
-              button={
-                <Button
-                  color="primary"
-                  fontSize="small"
-                  fontWeight="semiBold"
-                  paddingSize="none"
-                  onClick={props.onSignOut}
-                  variant="flat"
-                  underline
-                  className={cn(
-                    styles.userBoxButton,
-                    CLASSES.viewerBox.logoutButton
-                  )}
-                />
-              }
+              elems={{
+                button: (
+                  <Button
+                    color="primary"
+                    fontSize="small"
+                    fontWeight="semiBold"
+                    paddingSize="none"
+                    onClick={props.onSignOut}
+                    variant="flat"
+                    underline
+                    className={cn(
+                      styles.userBoxButton,
+                      CLASSES.viewerBox.logoutButton
+                    )}
+                  />
+                ),
+              }}
             >
               <span className={cn(styles.text, styles.signOut)}>
                 {"Not you? <button>Sign Out</button>"}

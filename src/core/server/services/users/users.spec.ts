@@ -8,6 +8,7 @@ import {
   createUserFixture,
 } from "coral-server/test/fixtures";
 import {
+  createMockDataCache,
   createMockMailer,
   createMockMongoContex,
   createMockRejector,
@@ -21,6 +22,7 @@ import { demoteMember, promoteMember } from ".";
 describe("updateUserBan", () => {
   afterEach(jest.clearAllMocks);
 
+  const cache = createMockDataCache();
   const mailer = createMockMailer();
   const rejector = createMockRejector();
   const { ctx: mongo } = createMockMongoContex();
@@ -46,6 +48,7 @@ describe("updateUserBan", () => {
       async () =>
         await updateUserBan(
           mongo,
+          cache,
           mailer,
           rejector,
           tenant,
@@ -66,6 +69,7 @@ describe("updateUserBan", () => {
       async () =>
         await updateUserBan(
           mongo,
+          cache,
           mailer,
           rejector,
           tenant,
@@ -83,6 +87,7 @@ describe("updateUserBan", () => {
       tenantID: tenant.id,
       moderationScopes: {
         siteIDs: [siteA.id],
+        scoped: true,
       },
     });
 
@@ -90,6 +95,7 @@ describe("updateUserBan", () => {
       async () =>
         await updateUserBan(
           mongo,
+          cache,
           mailer,
           rejector,
           tenant,
@@ -112,6 +118,7 @@ describe("updateUserBan", () => {
       async () =>
         await updateUserBan(
           mongo,
+          cache,
           mailer,
           rejector,
           tenant,
@@ -136,10 +143,13 @@ describe("updateUserBan", () => {
     });
 
     /* eslint-disable-next-line */
-    require("coral-server/models/user").retrieveUser.mockResolvedValue(bannedOnSiteA);
+    require("coral-server/models/user").retrieveUser.mockResolvedValue(
+      bannedOnSiteA
+    );
 
     const res = await updateUserBan(
       mongo,
+      cache,
       mailer,
       rejector,
       tenant,
@@ -173,6 +183,7 @@ describe("updateUserBan", () => {
 
     const res = await updateUserBan(
       mongo,
+      cache,
       mailer,
       rejector,
       tenant,
@@ -198,6 +209,7 @@ describe("updateUserBan", () => {
 
     const res = await updateUserBan(
       mongo,
+      cache,
       mailer,
       rejector,
       tenant,
@@ -223,6 +235,7 @@ describe("updateUserBan", () => {
 
     const dontRejectRes = await updateUserBan(
       mongo,
+      cache,
       mailer,
       rejector,
       tenant,
@@ -238,6 +251,7 @@ describe("updateUserBan", () => {
 
     const rejectRes = await updateUserBan(
       mongo,
+      cache,
       mailer,
       rejector,
       tenant,
@@ -272,7 +286,8 @@ describe("updateRole", () => {
         tenant,
         commenterA,
         commenterA.id,
-        GQLUSER_ROLE.MODERATOR
+        GQLUSER_ROLE.MODERATOR,
+        false
       );
     }).rejects.toThrow(Error);
   });
@@ -292,6 +307,7 @@ describe("promote/demoteMember", () => {
     role: GQLUSER_ROLE.MODERATOR,
     moderationScopes: {
       siteIDs: [siteA.id, siteB.id],
+      scoped: true,
     },
   });
   const siteCMod = createUserFixture({
@@ -299,6 +315,7 @@ describe("promote/demoteMember", () => {
     role: GQLUSER_ROLE.MODERATOR,
     moderationScopes: {
       siteIDs: [siteC.id],
+      scoped: true,
     },
   });
   const member = createUserFixture({
@@ -308,12 +325,12 @@ describe("promote/demoteMember", () => {
   const promotedMember = createUserFixture({
     tenantID,
     role: GQLUSER_ROLE.MEMBER,
-    membershipScopes: { siteIDs: [siteA.id, siteB.id] },
+    membershipScopes: { siteIDs: [siteA.id, siteB.id], scoped: true },
   });
   const siteAMember = createUserFixture({
     tenantID,
     role: GQLUSER_ROLE.MEMBER,
-    membershipScopes: { siteIDs: [siteA.id] },
+    membershipScopes: { siteIDs: [siteA.id], scoped: true },
   });
 
   const users = [siteABMod, siteCMod, member, promotedMember, siteAMember];

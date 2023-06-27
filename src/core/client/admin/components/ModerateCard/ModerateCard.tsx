@@ -138,33 +138,30 @@ const ModerateCard: FunctionComponent<Props> = ({
 
   useEffect(() => {
     if (selected) {
-      if (selectNext) {
-        key(HOTKEYS.NEXT, id, selectNext);
-      }
-      if (selectPrev) {
-        key(HOTKEYS.PREV, id, selectPrev);
-      }
-      if (onBan) {
-        key(HOTKEYS.BAN, id, onBan);
-      }
-      key(HOTKEYS.APPROVE, id, onApprove);
-      key(HOTKEYS.REJECT, id, onReject);
-
-      // The the scope such that only events attached to the ${id} scope will
-      // be honored.
       key.setScope(id);
-
-      return () => {
-        // Remove all events that are set in the ${id} scope.
-        key.deleteScope(id);
-      };
-    } else {
-      // Remove all events that were set in the ${id} scope.
-      key.deleteScope(id);
     }
+  }, [selected, id]);
+
+  useEffect(() => {
+    if (selectNext) {
+      key(HOTKEYS.NEXT, id, selectNext);
+    }
+    if (selectPrev) {
+      key(HOTKEYS.PREV, id, selectPrev);
+    }
+    if (onBan) {
+      key(HOTKEYS.BAN, id, onBan);
+    }
+    key(HOTKEYS.APPROVE, id, onApprove);
+    key(HOTKEYS.REJECT, id, onReject);
+
+    return () => {
+      // Remove all events that are set in the ${id} scope.
+      key.deleteScope(id);
+    };
 
     return noop;
-  }, [selected, id, selectNext, selectPrev, onBan, onApprove, onReject]);
+  }, [id, selectNext, selectPrev, onBan, onApprove, onReject]);
 
   useEffect(() => {
     if (selected && div && div.current) {

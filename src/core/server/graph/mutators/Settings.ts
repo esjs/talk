@@ -60,14 +60,25 @@ export const Settings = ({
   tenantCache,
   tenant,
   config,
+  wordList,
   now,
   mailerQueue,
   user,
 }: GraphContext) => ({
-  update: (
+  update: async (
     input: WithoutMutationID<GQLUpdateSettingsInput>
-  ): Promise<Tenant | null> =>
-    update(mongo, redis, tenantCache, config, tenant, user!, input.settings),
+  ): Promise<Tenant | null> => {
+    return await update(
+      mongo,
+      redis,
+      tenantCache,
+      config,
+      wordList,
+      tenant,
+      user!,
+      input.settings
+    );
+  },
   rotateSSOSigningSecret: ({ inactiveIn }: GQLRotateSSOSigningSecretInput) =>
     rotateSSOSigningSecret(mongo, redis, tenantCache, tenant, inactiveIn, now),
   deleteSSOSigningSecret: ({ kid }: GQLDeleteSSOSigningSecretInput) =>
@@ -125,7 +136,7 @@ export const Settings = ({
       now
     ),
   createEmailDomain: (input: WithoutMutationID<GQLCreateEmailDomainInput>) =>
-    createEmailDomain(mongo, redis, tenantCache, tenant, input),
+    createEmailDomain(mongo, redis, tenantCache, tenant, user, input),
   updateEmailDomain: (input: WithoutMutationID<GQLUpdateEmailDomainInput>) =>
     updateEmailDomain(mongo, redis, tenantCache, tenant, input),
   deleteEmailDomain: (input: WithoutMutationID<GQLDeleteEmailDomainInput>) =>

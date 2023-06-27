@@ -4,6 +4,8 @@ import { CoralContext } from "coral-framework/lib/bootstrap";
 import {
   commitLocalUpdatePromisified,
   createMutation,
+  LOCAL_ID,
+  lookup,
 } from "coral-framework/lib/relay";
 import { GQLCOMMENT_SORT, GQLTAG } from "coral-framework/schema";
 import { ViewNewCommentsEvent } from "coral-stream/events";
@@ -44,6 +46,8 @@ const AllCommentsTabViewNewMutation = createMutation(
     { eventEmitter }: CoralContext
   ) => {
     let commentIDs: string[] = [];
+    const commentIDsAlreadySeen: string[] = [];
+    const refreshStream = !!lookup(environment, LOCAL_ID).refreshStream;
 
     await commitLocalUpdatePromisified(environment, async (store) => {
       const story = store.get(storyID)!;
@@ -53,6 +57,7 @@ const AllCommentsTabViewNewMutation = createMutation(
         {
           orderBy: GQLCOMMENT_SORT.CREATED_AT_DESC,
           tag,
+          refreshStream,
         }
       )!;
       const viewNewEdges = connection.getLinkedRecords(
@@ -70,6 +75,11 @@ const AllCommentsTabViewNewMutation = createMutation(
       viewNewEdges.forEach((edge) => {
         ConnectionHandler.insertEdgeBefore(connection, edge);
         incrementStoryCommentCounts(store, storyID, edge);
+        if (edge.getLinkedRecord("node")?.getValue("seen")) {
+          commentIDsAlreadySeen.push(
+            edge.getLinkedRecord("node")!.getValue("id") as string
+          );
+        }
       });
 
       ViewNewCommentsEvent.emit(eventEmitter, {
@@ -80,6 +90,11 @@ const AllCommentsTabViewNewMutation = createMutation(
     });
 
     if (viewerID && markSeen && commentIDs.length > 0 && markAsSeen) {
+      // Filter out any new comment edges that have already been marked as seen,
+      // via mark all as read, for example
+      commentIDs = commentIDs.filter(
+        (id) => !commentIDsAlreadySeen.includes(id)
+      );
       await markAsSeen({ storyID, commentIDs, updateSeen: false });
     }
   }

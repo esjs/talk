@@ -1,9 +1,17 @@
 import getElementWindowTopOffset from "coral-ui/helpers/getElementWindowTopOffset";
 
-function scrollToBeginning(root: ShadowRoot | Document, window: Window) {
+function scrollToBeginning(
+  root: ShadowRoot | Document,
+  window: Window,
+  customScrollContainer?: HTMLElement
+) {
   const tab = root.getElementById("tab-COMMENTS");
   if (tab) {
-    window.scrollTo({ top: getElementWindowTopOffset(window, tab) });
+    if (customScrollContainer) {
+      tab.scrollIntoView();
+    } else {
+      window.scrollTo({ top: getElementWindowTopOffset(window, tab) });
+    }
   }
 }
 

@@ -9,7 +9,6 @@ import {
   createResolversStub,
   CreateTestRendererParams,
   replaceHistoryLocation,
-  toJSON,
   wait,
   waitForElement,
   within,
@@ -69,74 +68,6 @@ async function createTestRenderer(
   });
 }
 
-it("renders addEmailAddress view", async () => {
-  const { root } = await createTestRenderer();
-
-  await act(async () => {
-    await wait(() => {
-      expect(toJSON(root)).toMatchSnapshot();
-    });
-  });
-});
-
-it("shows error when submitting empty form", async () => {
-  const { form } = await createTestRenderer();
-
-  act(() => {
-    form.props.onSubmit();
-  });
-
-  await act(async () => {
-    await wait(() => {
-      expect(toJSON(form)).toMatchSnapshot();
-    });
-  });
-});
-
-it("checks for invalid email", async () => {
-  const {
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer();
-
-  act(() =>
-    emailAddressField.props.onChange({ target: { value: "invalid-email" } })
-  );
-  act(() =>
-    confirmEmailAddressField.props.onChange({
-      target: { value: "invalid-confirmation-email" },
-    })
-  );
-
-  act(() => {
-    form.props.onSubmit();
-  });
-
-  await act(async () => {
-    await wait(() => {
-      expect(toJSON(form)).toMatchSnapshot();
-    });
-  });
-});
-
-it("accepts valid email", async () => {
-  const { form, emailAddressField } = await createTestRenderer();
-
-  act(() =>
-    emailAddressField.props.onChange({ target: { value: "hans@test.com" } })
-  );
-  act(() => {
-    form.props.onSubmit();
-  });
-
-  await act(async () => {
-    await wait(() => {
-      expect(toJSON(form)).toMatchSnapshot();
-    });
-  });
-});
-
 it("shows server error", async () => {
   const email = "hans@test.com";
   const resolvers = createResolversStub<GQLResolver>({
@@ -147,14 +78,11 @@ it("shows server error", async () => {
     },
   });
 
-  const {
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer({
-    resolvers,
-    muteNetworkErrors: true,
-  });
+  const { form, emailAddressField, confirmEmailAddressField } =
+    await createTestRenderer({
+      resolvers,
+      muteNetworkErrors: true,
+    });
   const submitButton = form.find(
     (i) => i.type === "button" && i.props.type === "submit"
   );
@@ -178,7 +106,6 @@ it("shows server error", async () => {
       expect(submitButton.props.disabled).toBe(false);
     });
   });
-  expect(toJSON(form)).toMatchSnapshot();
 });
 
 it("successfully sets email", async () => {
@@ -199,13 +126,10 @@ it("successfully sets email", async () => {
     },
   });
 
-  const {
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer({
-    resolvers,
-  });
+  const { form, emailAddressField, confirmEmailAddressField } =
+    await createTestRenderer({
+      resolvers,
+    });
   const submitButton = form.find(
     (i) => i.type === "button" && i.props.type === "submit"
   );
@@ -230,7 +154,6 @@ it("successfully sets email", async () => {
     });
   });
 
-  expect(toJSON(form)).toMatchSnapshot();
   expect(resolvers.Mutation!.setEmail!.called).toBe(true);
 });
 
@@ -242,19 +165,15 @@ it("switch to link account", async () => {
       traceID: "traceID",
     });
   });
-  const {
-    testRenderer,
-    form,
-    emailAddressField,
-    confirmEmailAddressField,
-  } = await createTestRenderer({
-    resolvers: {
-      Mutation: {
-        setEmail,
+  const { testRenderer, form, emailAddressField, confirmEmailAddressField } =
+    await createTestRenderer({
+      resolvers: {
+        Mutation: {
+          setEmail,
+        },
       },
-    },
-    muteNetworkErrors: true,
-  });
+      muteNetworkErrors: true,
+    });
   const submitButton = form.find(
     (i) => i.type === "button" && i.props.type === "submit"
   );

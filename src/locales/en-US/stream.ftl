@@ -50,6 +50,8 @@ comment-count-text-ratings =
   }
 
 ## Comments Tab
+addACommentButton =
+  .aria-label = Add a comment. This button will move focus to the bottom of the comments.
 
 comments-allCommentsTab = All Comments
 comments-featuredTab = Featured
@@ -75,10 +77,14 @@ comments-featuredCommentTooltip-toggleButton =
   .aria-label = Toggle featured comments tooltip
   .title = Toggle featured comments tooltip
 
-comments-collapse-toggle =
-  .aria-label = Collapse comment thread
-comments-expand-toggle =
-  .aria-label = Expand comment thread
+comments-collapse-toggle-with-username =
+  .aria-label = Hide comment by { $username } and its replies
+comments-collapse-toggle-without-username =
+  .aria-label = Hide comment and its replies
+comments-expand-toggle-with-username =
+  .aria-label = Show comment by { $username } and its replies
+comments-expand-toggle-without-username =
+  .aria-label = Show comment and its replies
 comments-bannedInfo-bannedFromCommenting = Your account has been banned from commenting.
 comments-bannedInfo-violatedCommunityGuidelines =
   Someone with access to your account has violated our community
@@ -122,12 +128,15 @@ comments-postComment-confirmMedia-add-tweet = Add Tweet
 comments-postComment-confirmMedia-add-video = Add video
 comments-postComment-confirmMedia-remove = Remove
 comments-commentForm-gifPreview-remove = Remove
+comments-viewNew-loading = Loading...
 comments-viewNew =
   { $count ->
     [1] View {$count} New Comment
     *[other] View {$count} New Comments
   }
 comments-loadMore = Load More
+comments-loadAll = Load All Comments
+comments-loadAll-loading = Loading...
 
 comments-permalinkPopover =
   .description = A dialog showing a permalink to the comment
@@ -272,11 +281,15 @@ comments-moderationDropdown-moderateStory = Moderate story
 comments-moderationDropdown-caretButton =
   .aria-label = Moderate
 
+comments-moderationDropdown-embedCode = Embed code
+comments-moderationDropdown-embedCodeCopied = Code copied
+
 comments-moderationRejectedTombstone-title = You have rejected this comment.
 comments-moderationRejectedTombstone-moderateLink =
   Go to moderate to review this decision
 
 comments-featuredTag = Featured
+comments-featuredBy = Featured by <strong>{$username}</strong>
 
 # $reaction could be "Respect" as an example. Be careful when translating to other languages with different grammar cases.
 comments-react =
@@ -298,8 +311,17 @@ comments-jumpToComment-GoToReply = Go to reply
 
 comments-mobileToolbar-closeButton =
   .aria-label = Close
-comments-mobileToolbar-unmarkAll = Unmark all
+comments-mobileToolbar-unmarkAll = Mark all as read
 comments-mobileToolbar-nextUnread = Next unread
+
+comments-refreshComments-closeButton = Close
+  .aria-label = Close
+comments-refreshComments-refreshButton = Refresh comments
+  .aria-label = Refresh comments
+comments-refreshQuestions-refreshButton = Refresh questions
+  .aria-label = Refresh questions
+comments-refreshReviews-refreshButton = Refresh reviews
+  .aria-label = Refresh reviews
 
 comments-replyChangedWarning-theCommentHasJust =
   This comment has just been edited. The latest version is displayed above.
@@ -324,6 +346,7 @@ qa-noQuestionsAtAll =
   There are no questions on this story.
 qa-noQuestionsYet =
   There are no questions yet. Why don't you ask one?
+qa-viewNew-loading = Loading...
 qa-viewNew =
   { $count ->
     [1] View {$count} New Question
@@ -401,11 +424,16 @@ comments-embedLinks-hide-twitter = Hide Tweet
 comments-embedLinks-show-external = Show image
 comments-embedLinks-hide-external = Hide image
 
+comments-embedLinks-expand = Expand
 
 ### Featured Comments
 comments-featured-label =
   Featured Comment from {$username} <RelativeTime></RelativeTime>
 comments-featured-gotoConversation = Go to conversation
+comments-featured-gotoConversation-label-with-username =
+  .aria-label = Go to this featured comment by user { $username } in the main comment stream
+comments-featured-gotoConversation-label-without-username =
+  .aria-label = Go to this featured comment in the main comment stream
 comments-featured-replies = Replies
 
 ## Profile Tab
@@ -505,6 +533,7 @@ profile-account-ignoredCommenters-stopIgnoring = Stop ignoring
 profile-account-ignoredCommenters-youAreNoLonger =
   You are no longer ignoring
 profile-account-ignoredCommenters-manage = Manage
+  .aria-label = Manage ignored commenters
 profile-account-ignoredCommenters-cancel = Cancel
 profile-account-ignoredCommenters-close = Close
 
@@ -626,6 +655,7 @@ profile-account-deleteAccount-pages-completeWhyDeleteAccount =
   our comment system by emailing { $email }.
 profile-account-changePassword-edit = Edit
 profile-account-changePassword-change = Change
+  .aria-label = Change password
 
 
 ## Notifications
@@ -718,6 +748,7 @@ profile-changeUsername-username = Username
 profile-changeUsername-success = Your username has been successfully updated
 profile-changeUsername-edit = Edit
 profile-changeUsername-change = Change
+  .aria-label = Change username
 profile-changeUsername-heading = Edit your username
 profile-changeUsername-heading-changeYourUsername = Change your username
 profile-changeUsername-desc = Change the username that will appear on all of your past and future comments. <strong>Usernames can be changed once every { framework-timeago-time }.</strong>
@@ -850,12 +881,12 @@ configure-experts-none-yet = There are currently no experts for this Q&A.
 configure-experts-search-title = Search for an expert
 configure-experts-assigned-title = Experts
 configure-experts-noLongerAnExpert = is no longer an expert
-comments-tombstone-ignore = This comment is hidden because you ignored {$username}
+comments-tombstone-ignore-user = This comment is hidden because you ignored this user.
 comments-tombstone-showComment = Show comment
 comments-tombstone-deleted =
   This comment is no longer available. The commenter has deleted their account.
 comments-tombstone-rejected =
-  This commenter has been removed by a moderator for violating our community guidelines.
+  This comment has been removed by a moderator for violating our community guidelines.
 
 suspendInfo-heading =
 suspendInfo-heading-yourAccountHasBeen =
@@ -884,6 +915,7 @@ profile-changeEmail-unverified = (Unverified)
 profile-changeEmail-current = (current)
 profile-changeEmail-edit = Edit
 profile-changeEmail-change = Change
+  .aria-label = Change email
 profile-changeEmail-please-verify = Verify your email address
 profile-changeEmail-please-verify-details =
   An email has been sent to { $email } to verify your account.

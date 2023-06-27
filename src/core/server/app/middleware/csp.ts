@@ -132,35 +132,49 @@ type Options = Pick<AppOptions, "mongo" | "config"> & {
 /**
  * cspMiddleware handles adding the CSP middleware to each outgoing request.
  */
-export const cspSiteMiddleware = ({
-  mongo,
-  config,
-  frameAncestorsDeny,
-}: Options): RequestHandler => async (req, res, next) => {
-  // If the frame ancestors is being set to deny, then use an empty list,
-  // otherwise look it up from the request.
-  const origins = frameAncestorsDeny
-    ? []
-    : await retrieveOriginsFromRequest(mongo, config, req);
+export const cspSiteMiddleware =
+  ({ mongo, config, frameAncestorsDeny }: Options): RequestHandler =>
+  async (req, res, next) => {
+    const {
+      coral: { tenant },
+    } = req;
 
-  const frameOptions = generateFrameOptions(req, origins);
-  if (frameOptions) {
-    res.setHeader("X-Frame-Options", frameOptions);
-  }
+    // if we have a tenant (should come through on all admin pages)
+    // then we can pull our domain for admin handlers and set it in
+    // our CSP headers.
+    const domains: string[] = [];
+    if (tenant) {
+      const domain =
+        config.get("env") === "development"
+          ? `http://${tenant.domain}:${config.get("port")}`
+          : tenant.domain;
+      domains.push(domain);
+    }
 
-  // If we have AMP enabled, then we cannot send frame-ancestors because we
-  // can't predict the top level ancestor!
-  if (req.coral.tenant && isAMPEnabled(req.coral.tenant)) {
+    // If the frame ancestors is being set to deny (admin pages), then
+    // use our domains, otherwise look it up from the request (stream).
+    const origins = frameAncestorsDeny
+      ? domains
+      : await retrieveOriginsFromRequest(mongo, config, req);
+
+    const frameOptions = generateFrameOptions(req, origins);
+    if (frameOptions) {
+      res.setHeader("X-Frame-Options", frameOptions);
+    }
+
+    // If we have AMP enabled, then we cannot send frame-ancestors because we
+    // can't predict the top level ancestor!
+    if (req.coral.tenant && isAMPEnabled(req.coral.tenant)) {
+      return next();
+    }
+
+    res.setHeader(
+      "Content-Security-Policy",
+      generateContentSecurityPolicy(origins)
+    );
+
     return next();
-  }
-
-  res.setHeader(
-    "Content-Security-Policy",
-    generateContentSecurityPolicy(origins)
-  );
-
-  return next();
-};
+  };
 
 function generateContentSecurityPolicy(allowedOrigins: string[]) {
   // Only the domains that are allowed by the tenant may embed Coral.

@@ -11,6 +11,7 @@ storyStatus-open = Open
 storyStatus-closed = Closed
 storyStatus-archiving = Archiving
 storyStatus-archived = Archived
+storyStatus-unarchiving = Unarchiving
 
 ## Roles
 role-admin = Admin
@@ -499,7 +500,11 @@ configure-general-commentEditing-seconds = Seconds
 configure-general-flattenReplies-title = Flatten replies
 configure-general-flattenReplies-enabled = Flatten replies enabled
 configure-general-flattenReplies-explanation =
-  Change how levels of replies display. When enabled, replies to comments can go up to four levels deep before they are no longer indented on the page. When disabled, after a depth of four replies, the rest of the conversation is displayed in a dedicated view away from the other comments.
+  Change how levels of replies display. When enabled, replies to comments can go up to seven levels deep before they are no longer indented on the page. When disabled, after a depth of seven replies, the rest of the conversation is displayed in a dedicated view away from the other comments.
+
+configure-general-featuredBy-title = Featured by
+configure-general-featuredBy-enabled = Featured by enabled
+configure-general-featuredBy-explanation = Add moderator name to featured comment display
 
 #### Closed Stream Message
 configure-general-closedStreamMessage-title = Closed comment stream message
@@ -573,6 +578,7 @@ stories-actions-close = Close story
 stories-actions-open = Open story
 stories-actions-archive = Archive story
 stories-actions-unarchive = Unarchive story
+stories-actions-isUnarchiving = Unarchiving
 
 ### Sections
 
@@ -877,6 +883,12 @@ configure-advanced-customCSS-fontsStylesheetURL = Custom CSS Stylesheet URL for 
 configure-advanced-customCSS-containsFontFace =
   URL to a custom CSS stylesheet that contains all @font-face
   definitions needed by above stylesheet.
+
+configure-advanced-embeddedCommentReplies = Embedded comment replies
+configure-advanced-embeddedCommentReplies-explanation = When enabled, a reply button
+  will appear with each embedded comment to encourage additional discussion on that
+  specific comment or story.
+configure-advanced-embeddedCommentReplies-label = Allow replies to embedded comments
 
 configure-advanced-permittedDomains = Permitted domains
 configure-advanced-permittedDomains-description =
@@ -1320,6 +1332,8 @@ community-userStatus-premodUser = Always pre-moderate
 community-userStatus-removePremod = Remove pre-moderate
 
 community-banModal-allSites-title = Are you sure you want to ban <username></username>?
+community-banModal-banEmailDomain-title = Email domain ban
+community-banModal-banEmailDomain = Ban all new commenter accounts from { $domain }
 community-banModal-specificSites-title = Are you sure you want to manage the ban status of <username></username>?
 community-banModal-noSites-title = Are you sure you want to unban <username></username>?
 community-banModal-allSites-consequence =
@@ -1378,8 +1392,7 @@ community-siteRoleModal-assignSites =
 community-siteRoleModal-assignSitesDescription-siteModerator =
   Site moderators are permitted to make moderation decisions and issue suspensions on the sites they are assigned.
 community-siteRoleModal-cancel = Cancel
-community-siteRoleModal-assign = Assign
-community-siteRoleModal-remove = Remove
+community-siteRoleModal-update = Update
 community-siteRoleModal-selectSites-siteModerator = Select sites to moderate
 community-siteRoleModal-selectSites-member = Select sites for this user to be a member of
 community-siteRoleModal-noSites = No sites
@@ -1485,7 +1498,11 @@ storyInfoDrawerSettings-moderationMode-post = Post
 storyInfoDrawerSettings-update = Update
 storyInfoDrawer-storyStatus-archiving = Archiving
 storyInfoDrawer-storyStatus-archived = Archived
-
+storyInfoDrawer-cacheStory-recache = Recache story
+storyInfoDrawer-cacheStory-recaching = Recaching
+storyInfoDrawer-cacheStory-cached = Cached
+storyInfoDrawer-cacheStory-uncacheStory = Uncache story
+storyInfoDrawer-cacheStory-uncaching = Uncaching
 
 ## Invite
 
@@ -1696,7 +1713,7 @@ dashboard-alltime-rejections-archiveEnabled = { $value } { $unit ->
     }
     *[other] unknown unit
   } average
-dashboard-today-staff-comments = Staff comments
+dashboard-today-staffPlus-comments = Staff+ comments
 dashboard-alltime-staff-comments = All time total
 dashboard-alltime-staff-comments-archiveEnabled = { $value } { $unit ->
     [second] { $value ->
@@ -1753,3 +1770,9 @@ conversation-modal-commentNotFound = Comment not found.
 conversation-modal-showMoreReplies = Show more replies
 conversation-modal-header-title = Conversation on:
 conversation-modal-header-moderate-link = Moderate story
+
+# Control panel
+
+controlPanel-redis-redis = Redis
+controlPanel-redis-flushRedis = Flush Redis
+controlPanel-redis-flush = Flush

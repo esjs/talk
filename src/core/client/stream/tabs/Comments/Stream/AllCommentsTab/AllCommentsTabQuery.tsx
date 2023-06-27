@@ -4,6 +4,7 @@ import { graphql } from "react-relay";
 
 import { coerceStoryMode } from "coral-framework/helpers";
 import { useEffectAtUnmount } from "coral-framework/hooks";
+import { IntersectionProvider } from "coral-framework/lib/intersection";
 import {
   QueryRenderData,
   QueryRenderer,
@@ -22,11 +23,14 @@ import SpinnerWhileRendering from "./SpinnerWhileRendering";
 
 interface Props {
   tag?: GQLTAG;
+  currentScrollRef: any;
 }
 
 export const render = (
   data: QueryRenderData<QueryTypes>,
   flattenReplies: boolean,
+  currentScrollRef: any,
+  refreshStream: boolean | null,
   tag?: GQLTAG
 ) => {
   if (!data) {
@@ -46,13 +50,17 @@ export const render = (
 
     return (
       <SpinnerWhileRendering>
-        <AllCommentsTabContainer
-          settings={data.props.settings}
-          viewer={data.props.viewer}
-          story={data.props.story}
-          tag={tag}
-          flattenReplies={flattenReplies}
-        />
+        <IntersectionProvider threshold={[0, 1]}>
+          <AllCommentsTabContainer
+            settings={data.props.settings}
+            viewer={data.props.viewer}
+            story={data.props.story}
+            tag={tag}
+            flattenReplies={flattenReplies}
+            currentScrollRef={currentScrollRef}
+            refreshStream={refreshStream}
+          />
+        </IntersectionProvider>
       </SpinnerWhileRendering>
     );
   }
@@ -63,9 +71,19 @@ export const render = (
   );
 };
 
-const AllCommentsTabQuery: FunctionComponent<Props> = ({ tag }) => {
+const AllCommentsTabQuery: FunctionComponent<Props> = ({
+  tag,
+  currentScrollRef,
+}) => {
   const [
-    { storyID, storyURL, storyMode, ratingFilter, commentsOrderBy },
+    {
+      storyID,
+      storyURL,
+      storyMode,
+      ratingFilter,
+      commentsOrderBy,
+      refreshStream,
+    },
     setLocal,
   ] = useLocal<Local>(graphql`
     fragment AllCommentsTabQueryLocal on Local {
@@ -74,6 +92,7 @@ const AllCommentsTabQuery: FunctionComponent<Props> = ({ tag }) => {
       storyMode
       ratingFilter
       commentsOrderBy
+      refreshStream
     }
   `);
   const flattenReplies = useStaticFlattenReplies();
@@ -94,6 +113,7 @@ const AllCommentsTabQuery: FunctionComponent<Props> = ({ tag }) => {
           $storyMode: STORY_MODE
           $flattenReplies: Boolean!
           $ratingFilter: Int
+          $refreshStream: Boolean
         ) {
           viewer {
             ...AllCommentsTabContainer_viewer
@@ -104,6 +124,7 @@ const AllCommentsTabQuery: FunctionComponent<Props> = ({ tag }) => {
                 orderBy: $commentsOrderBy
                 tag: $tag
                 ratingFilter: $ratingFilter
+                refreshStream: $refreshStream
               )
           }
           settings {
@@ -119,8 +140,11 @@ const AllCommentsTabQuery: FunctionComponent<Props> = ({ tag }) => {
         ratingFilter,
         storyMode: coerceStoryMode(storyMode),
         flattenReplies,
+        refreshStream,
       }}
-      render={(data) => render(data, flattenReplies, tag)}
+      render={(data) =>
+        render(data, flattenReplies, currentScrollRef, refreshStream, tag)
+      }
     />
   );
 };

@@ -91,6 +91,11 @@ export interface ClientTargetHandlerOptions {
    * iframe.
    */
   disableFraming?: true;
+
+  /**
+   * templateVariables are variables to be passed into the template.
+   */
+  templateVariables?: Record<string, any>;
 }
 
 function createClientTargetRouter(options: ClientTargetHandlerOptions) {
@@ -143,87 +148,87 @@ const populateStaticConfig = (staticConfig: StaticConfig, req: Request) => {
   };
 };
 
-const clientHandler = ({
-  analytics,
-  staticConfig,
-  entrypointLoader,
-  enableCustomCSS,
-  defaultLocale,
-  template: viewTemplate = "client",
-}: ClientTargetHandlerOptions): RequestHandler => async (req, res, next) => {
-  // Grab the locale code from the tenant configuration, if available.
-  let locale: LanguageCode = defaultLocale;
-  let rootURL = "";
-  if (req.coral.tenant) {
-    locale = req.coral.tenant.locale;
-    rootURL = `${req.protocol}://${req.coral.tenant?.domain}`;
-  }
-
-  const entrypoint = await entrypointLoader();
-  if (!entrypoint) {
-    next(new Error("Entrypoint not available"));
-    return;
-  }
-
-  res.render(viewTemplate, {
+const clientHandler =
+  ({
     analytics,
-    staticURI: staticConfig.staticURI || "/",
-    entrypoint,
+    staticConfig,
+    entrypointLoader,
     enableCustomCSS,
-    locale,
-    config: populateStaticConfig(staticConfig, req),
-    rootURL,
-  });
-};
+    defaultLocale,
+    template: viewTemplate = "client",
+    templateVariables = {},
+  }: ClientTargetHandlerOptions): RequestHandler =>
+  async (req, res, next) => {
+    // Grab the locale code from the tenant configuration, if available.
+    let locale: LanguageCode = defaultLocale;
+    let rootURL = "";
+    if (req.coral.tenant) {
+      locale = req.coral.tenant.locale;
+      rootURL = `${req.protocol}://${req.coral.tenant?.domain}`;
+    }
+
+    const entrypoint = await entrypointLoader();
+    if (!entrypoint) {
+      next(new Error("Entrypoint not available"));
+      return;
+    }
+
+    res.render(viewTemplate, {
+      ...templateVariables,
+      analytics,
+      staticURI: staticConfig.staticURI || "/",
+      entrypoint,
+      enableCustomCSS,
+      locale,
+      config: populateStaticConfig(staticConfig, req),
+      rootURL,
+    });
+  };
 
 const createEmbedBootstrapHandler: (
   defaultLocale: LanguageCode,
   manifestLoader: ManifestLoader,
   staticConfig: StaticConfig
-) => RequestHandler<TenantCoralRequest> = (
-  defaultLocale,
-  manifestLoader,
-  staticConfig
-) => async (req, res, next) => {
-  if (!req.coral.tenant) {
-    next(new TenantNotFoundError(req.hostname));
-    return;
-  }
+) => RequestHandler<TenantCoralRequest> =
+  (defaultLocale, manifestLoader, staticConfig) => async (req, res, next) => {
+    if (!req.coral.tenant) {
+      next(new TenantNotFoundError(req.hostname));
+      return;
+    }
 
-  // Grab the locale code from the tenant configuration, if available.
-  let locale: LanguageCode = defaultLocale;
-  if (req.coral.tenant) {
-    locale = req.coral.tenant.locale;
-  }
+    // Grab the locale code from the tenant configuration, if available.
+    let locale: LanguageCode = defaultLocale;
+    if (req.coral.tenant) {
+      locale = req.coral.tenant.locale;
+    }
 
-  const streamEntrypointLoader = manifestLoader.createEntrypointLoader(
-    "stream"
-  );
-  const entrypoint = await streamEntrypointLoader();
-  const defaultFontsCSSURL = (await manifestLoader.load())[
-    "assets/css/typography.css"
-  ]?.src;
+    const streamEntrypointLoader =
+      manifestLoader.createEntrypointLoader("stream");
+    const entrypoint = await streamEntrypointLoader();
+    const defaultFontsCSSURL = (await manifestLoader.load())[
+      "assets/css/typography.css"
+    ]?.src;
 
-  if (!entrypoint) {
-    next(new Error("Entrypoint not available"));
-    return;
-  }
+    if (!entrypoint) {
+      next(new Error("Entrypoint not available"));
+      return;
+    }
 
-  const data: EmbedBootstrapConfig = {
-    locale,
-    assets: {
-      js: entrypoint.js.map(({ src }) => ({ src })) || [],
-      css: entrypoint.css.map(({ src }) => ({ src })) || [],
-    },
-    customCSSURL: req.coral.tenant.customCSSURL,
-    customFontsCSSURL: req.coral.tenant.customFontsCSSURL,
-    defaultFontsCSSURL,
-    disableDefaultFonts: Boolean(req.coral.tenant.disableDefaultFonts),
-    staticConfig: populateStaticConfig(staticConfig, req),
+    const data: EmbedBootstrapConfig = {
+      locale,
+      assets: {
+        js: entrypoint.js.map(({ src }) => ({ src })) || [],
+        css: entrypoint.css.map(({ src }) => ({ src })) || [],
+      },
+      customCSSURL: req.coral.tenant.customCSSURL,
+      customFontsCSSURL: req.coral.tenant.customFontsCSSURL,
+      defaultFontsCSSURL,
+      disableDefaultFonts: Boolean(req.coral.tenant.disableDefaultFonts),
+      staticConfig: populateStaticConfig(staticConfig, req),
+    };
+
+    res.json(data);
   };
-
-  res.json(data);
-};
 
 export async function mountClientRoutes(
   router: Router,
@@ -267,6 +272,7 @@ export async function mountClientRoutes(
       cacheDuration: false,
       disableFraming: true,
       entrypointLoader: manifestLoader.createEntrypointLoader("auth"),
+      templateVariables: { title: options.config.get("signin_window_title") },
     })
   );
 

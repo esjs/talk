@@ -1,4 +1,5 @@
 import { Localized } from "@fluent/react/compat";
+import CLASSES from "coral-stream/classes";
 import React, {
   FunctionComponent,
   useCallback,
@@ -124,7 +125,7 @@ const ViewersWatchingContainer: FunctionComponent<Props> = ({
       story.viewerCount + 1;
 
   return (
-    <div ref={intersectionRef}>
+    <div ref={intersectionRef} className={CLASSES.viewersWatching.$root}>
       <CallOut
         classes={{
           icon: styles.icon,
@@ -134,7 +135,7 @@ const ViewersWatchingContainer: FunctionComponent<Props> = ({
         icon={<Icon size="md">people_alt</Icon>}
         color="primary"
         title={
-          <Localized id="comments-watchers" $count={viewerCount}>
+          <Localized id="comments-watchers" vars={{ count: viewerCount }}>
             <span>{viewerCount} online</span>
           </Localized>
         }

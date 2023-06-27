@@ -3,10 +3,13 @@ import { isNumber } from "lodash";
 
 import { ERROR_TYPES } from "coral-common/errors";
 import { Config } from "coral-server/config";
+import { DataCache } from "coral-server/data/cache/dataCache";
 import { MongoContext } from "coral-server/data/context";
 import {
+  AncestorRejectedError,
   AuthorAlreadyHasRatedStory,
   CannotCreateCommentOnArchivedStory,
+  CommentNotFoundError,
   CoralError,
   StoryNotFoundError,
   UserSiteBanned,
@@ -25,6 +28,7 @@ import {
   CreateCommentInput,
   hasAuthorStoryRating,
   pushChildCommentIDOntoParent,
+  retrieveManyComments,
 } from "coral-server/models/comment";
 import { getDepth, hasAncestors } from "coral-server/models/comment/helpers";
 import { markSeenComments } from "coral-server/models/seenComments/seenComments";
@@ -52,11 +56,13 @@ import {
   PhaseResult,
   processForModeration,
 } from "coral-server/services/comments/pipeline";
+import { WordListService } from "coral-server/services/comments/pipeline/phases/wordList/service";
 import { AugmentedRedis } from "coral-server/services/redis";
 import { updateUserLastCommentID } from "coral-server/services/users";
 import { Request } from "coral-server/types/express";
 
 import {
+  GQLCOMMENT_STATUS,
   GQLFEATURE_FLAG,
   GQLSTORY_MODE,
   GQLTAG,
@@ -68,6 +74,7 @@ import {
   retrieveParent,
   updateAllCommentCounts,
 } from "./helpers";
+import { updateTagCommentCounts } from "./helpers/updateAllCommentCounts";
 
 export type CreateComment = Omit<
   CreateCommentInput,
@@ -86,6 +93,7 @@ export type CreateComment = Omit<
 const markCommentAsAnswered = async (
   mongo: MongoContext,
   redis: AugmentedRedis,
+  cache: DataCache,
   broker: CoralEventPublisherBroker,
   tenant: Tenant,
   comment: Readonly<Comment>,
@@ -117,6 +125,14 @@ const markCommentAsAnswered = async (
     return;
   }
 
+  const parent = await retrieveParent(mongo, tenant.id, {
+    parentID: comment.parentID,
+    parentRevisionID: comment.parentRevisionID,
+  });
+  if (!parent) {
+    throw new CommentNotFoundError(comment.parentID);
+  }
+
   // We need to mark the parent question as answered.
   // - Remove the unanswered tag.
   // - Approve it since an expert has replied to it.
@@ -125,6 +141,7 @@ const markCommentAsAnswered = async (
     approveComment(
       mongo,
       redis,
+      cache,
       broker,
       tenant,
       comment.parentID,
@@ -133,6 +150,19 @@ const markCommentAsAnswered = async (
       now
     ),
   ]);
+
+  await updateTagCommentCounts(
+    tenant.id,
+    comment.storyID,
+    comment.siteID,
+    mongo,
+    redis,
+    // Since we removed the UNANSWERED tag, we need to recreate the
+    // before after state of having an UNANSWERED tag followed by
+    // not having an unanswered tag
+    parent.tags,
+    parent.tags.filter((t) => t.type !== GQLTAG.UNANSWERED)
+  );
 };
 
 const RatingSchema = Joi.number().min(1).max(5).integer();
@@ -166,6 +196,8 @@ const validateRating = async (
 export default async function create(
   mongo: MongoContext,
   redis: AugmentedRedis,
+  wordList: WordListService,
+  cache: DataCache,
   config: Config,
   broker: CoralEventPublisherBroker,
   tenant: Tenant,
@@ -233,7 +265,7 @@ export default async function create(
   }
 
   const ancestorIDs: string[] = [];
-  const parent = await retrieveParent(mongo, tenant.id, input);
+  let parent = await retrieveParent(mongo, tenant.id, input);
   if (parent) {
     ancestorIDs.push(parent.id);
     if (hasAncestors(parent)) {
@@ -245,6 +277,19 @@ export default async function create(
       { ancestorIDs: ancestorIDs.length },
       "pushed parent ancestorIDs into comment"
     );
+
+    const ancestors = await retrieveManyComments(
+      mongo.comments(),
+      tenant.id,
+      ancestorIDs
+    );
+    const rejectedAncestor = ancestors.find(
+      (ancestor) => ancestor?.status === GQLCOMMENT_STATUS.REJECTED
+    );
+
+    if (rejectedAncestor) {
+      throw new AncestorRejectedError(tenant.id, rejectedAncestor.id);
+    }
   }
 
   let media: CommentMedia | undefined;
@@ -261,6 +306,7 @@ export default async function create(
       mongo,
       redis,
       config,
+      wordList,
       tenant,
       story,
       storyMode,
@@ -336,6 +382,7 @@ export default async function create(
     markCommentAsAnswered(
       mongo,
       redis,
+      cache,
       broker,
       tenant,
       comment,
@@ -345,6 +392,7 @@ export default async function create(
     ),
     markSeenComments(
       mongo,
+      cache,
       tenant.id,
       comment.storyID,
       author.id,
@@ -357,12 +405,13 @@ export default async function create(
 
   if (input.parentID) {
     // Push the child's ID onto the parent.
-    await pushChildCommentIDOntoParent(
-      mongo,
-      tenant.id,
-      input.parentID,
-      comment.id
-    );
+    parent =
+      (await pushChildCommentIDOntoParent(
+        mongo,
+        tenant.id,
+        input.parentID,
+        comment.id
+      )) ?? null;
 
     log.trace("pushed child comment id onto parent");
   }
@@ -396,6 +445,22 @@ export default async function create(
     actionCounts,
     after: comment,
   });
+
+  const cacheAvailable = await cache.available(tenant.id);
+  if (cacheAvailable) {
+    await cache.comments.update(comment);
+    if (comment.authorID) {
+      await cache.users.populateUsers(tenant.id, [comment.authorID]);
+    }
+
+    if (parent) {
+      await cache.comments.update(parent);
+
+      if (parent.authorID) {
+        await cache.users.populateUsers(tenant.id, [parent.authorID]);
+      }
+    }
+  }
 
   // Publish changes to the event publisher.
   await publishChanges(broker, {

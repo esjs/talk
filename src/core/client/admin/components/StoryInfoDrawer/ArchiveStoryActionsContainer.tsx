@@ -2,7 +2,7 @@ import { Localized } from "@fluent/react/compat";
 import React, { FunctionComponent, useCallback, useState } from "react";
 import { graphql } from "relay-runtime";
 
-import { Ability, can } from "coral-admin/permissions";
+import { Ability, can } from "coral-admin/permissions/story";
 import {
   useLocal,
   useMutation,
@@ -32,13 +32,12 @@ const ArchiveStoryActionsContainer: FunctionComponent<Props> = ({
   const archiveStory = useMutation(ArchiveStoriesMutation);
   const unarchiveStory = useMutation(UnarchiveStoriesMutation);
 
-  const [{ archivingEnabled }] = useLocal<
-    ArchiveStoryActionsContainer_local
-  >(graphql`
-    fragment ArchiveStoryActionsContainer_local on Local {
-      archivingEnabled
-    }
-  `);
+  const [{ archivingEnabled }] =
+    useLocal<ArchiveStoryActionsContainer_local>(graphql`
+      fragment ArchiveStoryActionsContainer_local on Local {
+        archivingEnabled
+      }
+    `);
 
   const [archiveTriggered, setArchiveTriggered] = useState(false);
 
@@ -66,6 +65,16 @@ const ArchiveStoryActionsContainer: FunctionComponent<Props> = ({
     viewCanArchive &&
     !story.isArchiving &&
     story.isArchived;
+
+  if (story.isUnarchiving) {
+    return (
+      <Localized id="stories-actions-isUnarchiving">
+        <Button className={styles.button} disabled={true} color="secondary">
+          Unarchiving
+        </Button>
+      </Localized>
+    );
+  }
 
   if (canArchive) {
     return (
@@ -99,6 +108,7 @@ const enhanced = withFragmentContainer<Props>({
       id
       isArchiving
       isArchived
+      isUnarchiving
       isClosed
       status
       settings {

@@ -6,6 +6,7 @@ import { graphql, RelayPaginationProp } from "react-relay";
 import { useViewerNetworkEvent } from "coral-framework/lib/events";
 import {
   useLoadMore,
+  useLocal,
   withPaginationContainer,
 } from "coral-framework/lib/relay";
 import CLASSES from "coral-stream/classes";
@@ -20,6 +21,7 @@ import { ConversationThreadContainer_comment } from "coral-stream/__generated__/
 import { ConversationThreadContainer_settings } from "coral-stream/__generated__/ConversationThreadContainer_settings.graphql";
 import { ConversationThreadContainer_story } from "coral-stream/__generated__/ConversationThreadContainer_story.graphql";
 import { ConversationThreadContainer_viewer } from "coral-stream/__generated__/ConversationThreadContainer_viewer.graphql";
+import { ConversationThreadContainerLocal } from "coral-stream/__generated__/ConversationThreadContainerLocal.graphql";
 import { ConversationThreadContainerPaginationQueryVariables } from "coral-stream/__generated__/ConversationThreadContainerPaginationQuery.graphql";
 
 import DeletedTombstoneContainer from "../DeletedTombstoneContainer";
@@ -43,6 +45,12 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
   settings,
   relay,
 }) => {
+  const [{ refreshStream }] =
+    useLocal<ConversationThreadContainerLocal>(graphql`
+      fragment ConversationThreadContainerLocal on Local {
+        refreshStream
+      }
+    `);
   const [loadMore, isLoadingMore] = useLoadMore(relay, 5);
   const beginLoadMoreEvent = useViewerNetworkEvent(ShowMoreOfConversationEvent);
   const loadMoreAndEmit = useCallback(async () => {
@@ -71,7 +79,6 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
           viewer={viewer}
           comment={comment}
           allowTombstoneReveal
-          disableHide
         >
           <RejectedTombstoneContainer comment={comment}>
             <DeletedTombstoneContainer comment={comment}>
@@ -102,7 +109,6 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
                   viewer={viewer}
                   comment={rootParent}
                   allowTombstoneReveal
-                  disableHide
                 >
                   <RejectedTombstoneContainer comment={rootParent}>
                     <DeletedTombstoneContainer comment={rootParent}>
@@ -124,6 +130,7 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
                       comment={rootParent}
                       indentLevel={1}
                       allowIgnoredTombstoneReveal
+                      refreshStream={refreshStream}
                     />
                   )}
                 </IgnoredTombstoneOrHideContainer>
@@ -139,7 +146,7 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
             </Icon>
             <Localized
               id="comments-conversationThread-showMoreOfThisConversation"
-              $count={remaining}
+              vars={{ count: remaining }}
             >
               <Button
                 className={CLASSES.conversationThread.showMore}
@@ -168,7 +175,6 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
                     viewer={viewer}
                     comment={parent}
                     allowTombstoneReveal
-                    disableHide
                   >
                     <RejectedTombstoneContainer comment={parent}>
                       <DeletedTombstoneContainer comment={parent}>
@@ -190,6 +196,7 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
                         comment={parent}
                         indentLevel={1}
                         allowIgnoredTombstoneReveal
+                        refreshStream={refreshStream}
                       />
                     )}
                   </IgnoredTombstoneOrHideContainer>
@@ -205,7 +212,6 @@ const ConversationThreadContainer: FunctionComponent<Props> = ({
               viewer={viewer}
               comment={comment}
               allowTombstoneReveal
-              disableHide
             >
               <RejectedTombstoneContainer comment={comment}>
                 <DeletedTombstoneContainer comment={comment}>
@@ -257,10 +263,10 @@ const enhanced = withPaginationContainer<
     `,
     comment: graphql`
       fragment ConversationThreadContainer_comment on Comment
-        @argumentDefinitions(
-          count: { type: "Int", defaultValue: 0 }
-          cursor: { type: "Cursor" }
-        ) {
+      @argumentDefinitions(
+        count: { type: "Int", defaultValue: 0 }
+        cursor: { type: "Cursor" }
+      ) {
         id
         ...CommentContainer_comment
         ...IgnoredTombstoneOrHideContainer_comment

@@ -37,9 +37,15 @@ import {
   GQLTAG,
 } from "coral-server/graph/schema/__generated__/types";
 
-import { retrieveManyStories, retrieveStory } from "../story";
+import { retrieveManyStories, retrieveStory, Story } from "../story";
 import { PUBLISHED_STATUSES } from "./constants";
-import { CommentStatusCounts, createEmptyCommentStatusCounts } from "./counts";
+import {
+  CommentStatusCounts,
+  createEmptyCommentStatusCounts,
+  createEmptyGQLCommentTagCounts,
+  hasInvalidCommentTagCounts,
+  hasInvalidGQLCommentTagCounts,
+} from "./counts";
 import { hasAncestors } from "./helpers";
 import { Revision } from "./revision";
 import { CommentTag } from "./tag";
@@ -150,6 +156,12 @@ export interface Comment extends TenantResource {
    * pagination or the initial load of stream comments.
    */
   seen?: boolean;
+
+  /**
+   * embeddedAt is the date when a comment embed was first embedded and requested
+   * from the comment embed API
+   */
+  embeddedAt?: Date;
 }
 
 export type CreateCommentInput = Omit<
@@ -232,6 +244,9 @@ export async function pushChildCommentIDOntoParent(
     {
       $push: { childIDs: childID },
       $inc: { childCount: 1 },
+    },
+    {
+      returnOriginal: false,
     }
   );
 
@@ -471,6 +486,33 @@ export const retrieveCommentRepliesConnection = (
     filter,
   });
 };
+
+/**
+ * retrieveChildrenForParentConnection returns a Connection<Comment> for
+ * a given comment's child comments
+ *
+ * @param mongo database connection
+ * @param tenantID the tenant id
+ * @param storyID the id of the story the comment belongs to
+ * @param comment the comment to retrieve child comments of
+ * @param input connection configuration
+ */
+export async function retrieveChildrenForParentConnection(
+  collection: Collection<Readonly<Comment>>,
+  tenantID: string,
+  comment: Comment,
+  input: CommentConnectionInput
+): Promise<Readonly<Connection<Readonly<Comment>>>> {
+  const filter = {
+    ancestorIDs: { $in: [comment.id] },
+    ...input.filter,
+  };
+
+  return retrieveCommentStoryConnection(collection, tenantID, comment.storyID, {
+    ...input,
+    filter,
+  });
+}
 
 /**
  * retrieveCommentParentsConnection will return a comment connection used to
@@ -788,6 +830,51 @@ export interface UpdateCommentStatus {
   after: Readonly<Comment>;
 }
 
+/**
+ * updateCommentEmbeddedAt will update with the date at which the comment
+ * was first embedded.
+ *
+ * @param mongo the database handle
+ * @param tenantID the id of the Tenant
+ * @param id the id of the Comment being embedded
+ * @param isArchived whether the Comment is archived
+ */
+export async function updateCommentEmbeddedAt(
+  mongo: MongoContext,
+  tenantID: string,
+  id: string,
+  embeddedAt: Date,
+  isArchived = false
+): Promise<UpdateCommentStatus | null> {
+  const coll =
+    isArchived && mongo.archive ? mongo.archivedComments() : mongo.comments();
+  const result = await coll.findOneAndUpdate(
+    {
+      id,
+      tenantID,
+    },
+    {
+      $set: { embeddedAt },
+    },
+    {
+      // True to return the original document instead of the updated
+      // document.
+      returnOriginal: true,
+    }
+  );
+  if (!result.value) {
+    return null;
+  }
+
+  return {
+    before: result.value,
+    after: {
+      ...result.value,
+      embeddedAt,
+    },
+  };
+}
+
 export async function updateCommentStatus(
   mongo: MongoContext,
   tenantID: string,
@@ -1016,6 +1103,53 @@ export async function retrieveStoryCommentTagCounts(
 ): Promise<GQLCommentTagCounts[]> {
   const stories = await retrieveManyStories(mongo, tenantID, storyIDs);
 
+  const result = new Map<string, GQLCommentTagCounts>();
+
+  for (const story of stories) {
+    if (story === null || story === undefined) {
+      continue;
+    }
+
+    if (hasInvalidCommentTagCounts(story?.commentCounts.tags)) {
+      const tagsResult = await initializeCommentTagCountsForStory(
+        mongo,
+        tenantID,
+        story.id
+      );
+      result.set(story.id, tagsResult.tagCounts);
+    } else {
+      result.set(story.id, story.commentCounts.tags.tags);
+    }
+  }
+
+  return storyIDs.map((id) => {
+    const tags = result.get(id);
+    if (!tags) {
+      logger.warn(
+        { tenantID, storyID: id },
+        "found undefined/null comment count tags"
+      );
+      return createEmptyGQLCommentTagCounts();
+    }
+    if (hasInvalidGQLCommentTagCounts(tags)) {
+      logger.warn(
+        { tenantID, storyID: id },
+        "found invalid comment count tags"
+      );
+      return createEmptyGQLCommentTagCounts();
+    }
+
+    return tags;
+  });
+}
+
+export async function calculateCommentTagCounts(
+  mongo: MongoContext,
+  tenantID: string,
+  storyIDs: ReadonlyArray<string>
+): Promise<GQLCommentTagCounts[]> {
+  const stories = await retrieveManyStories(mongo, tenantID, storyIDs);
+
   const liveStories = stories
     .filter((s) => s !== null && s !== undefined)
     .filter((s) => !s?.isArchived && !s?.isArchiving)
@@ -1054,14 +1188,62 @@ export async function retrieveStoryCommentTagCounts(
     } else if (archivedCount && !isCountEmpty(archivedCount.counts)) {
       return archivedCount.counts;
     } else {
-      return {
-        [GQLTAG.FEATURED]: 0,
-        [GQLTAG.UNANSWERED]: 0,
-        [GQLTAG.REVIEW]: 0,
-        [GQLTAG.QUESTION]: 0,
-      };
+      return createEmptyGQLCommentTagCounts();
     }
   });
+}
+
+interface InitializeCommentTagCountsResult {
+  story: Readonly<Story>;
+  tagCounts: GQLCommentTagCounts;
+}
+
+export async function initializeCommentTagCountsForStory(
+  mongo: MongoContext,
+  tenantID: string,
+  storyID: string
+): Promise<InitializeCommentTagCountsResult> {
+  logger.info(
+    { tenantID, storyID },
+    "initializing comment tag counts for story"
+  );
+
+  const story = await retrieveStory(mongo, tenantID, storyID);
+  if (!story) {
+    throw new StoryNotFoundError(storyID);
+  }
+
+  const tagCounts = await calculateCommentTagCounts(mongo, tenantID, [storyID]);
+
+  if (!tagCounts || tagCounts.length <= 0) {
+    throw new Error("unable to initialize the comment tag counts");
+  }
+
+  let total = 0;
+  for (const [, value] of Object.entries(tagCounts[0])) {
+    total += value;
+  }
+
+  const result = await mongo.stories().findOneAndUpdate(
+    { tenantID, id: storyID },
+    {
+      $set: {
+        "commentCounts.tags": {
+          total,
+          tags: tagCounts[0],
+        },
+      },
+    }
+  );
+
+  if (!result.ok || !result.value) {
+    throw new Error("unable to initialize the comment tag counts");
+  }
+
+  return {
+    story: result.value,
+    tagCounts: tagCounts[0],
+  };
 }
 
 interface StoryCommentTagCounts {
@@ -1136,12 +1318,7 @@ async function retrieveStoryCommentTagCountsFromDb(
       // Keep this collection of empty tag counts up to date to ensure we
       // provide an accurate model. The type system should warn you if there is
       // missing/extra tags here.
-      {
-        [GQLTAG.FEATURED]: 0,
-        [GQLTAG.UNANSWERED]: 0,
-        [GQLTAG.REVIEW]: 0,
-        [GQLTAG.QUESTION]: 0,
-      }
+      createEmptyGQLCommentTagCounts()
     );
 
     return {

@@ -1,5 +1,4 @@
 import React, { FunctionComponent } from "react";
-import { findDOMNode } from "react-dom";
 
 import UIContext from "../UIContext";
 
@@ -39,9 +38,6 @@ export class ClickOutside extends React.Component<ClickOutsideProps> {
   };
 
   public componentDidMount() {
-    // TODO: find another solution to `findDOMNode`.
-    // eslint-disable-next-line react/no-find-dom-node
-    this.domNode = findDOMNode(this) as Element;
     this.props.window!.document.addEventListener(
       "click",
       this.handleClick,
@@ -50,15 +46,19 @@ export class ClickOutside extends React.Component<ClickOutsideProps> {
   }
 
   public componentWillUnmount() {
-    this.props.window!.document.removeEventListener(
-      "click",
-      this.handleClick,
-      true
-    );
+    if (this.props.window && this.props.window.document.removeEventListener) {
+      this.props.window.document.removeEventListener(
+        "click",
+        this.handleClick,
+        true
+      );
+    }
   }
 
   public render() {
-    return <div ref={this.handleRef}>{this.props.children}</div>;
+    return (
+      <div ref={(node) => (this.domNode = node)}>{this.props.children}</div>
+    );
   }
 }
 

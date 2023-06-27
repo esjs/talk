@@ -7,7 +7,7 @@ import { getURLWithCommentID } from "coral-framework/helpers";
 import { useViewerEvent } from "coral-framework/lib/events";
 import { useMutation } from "coral-framework/lib/relay";
 import withFragmentContainer from "coral-framework/lib/relay/withFragmentContainer";
-import { GQLSTORY_MODE, GQLUSER_STATUS } from "coral-framework/schema";
+import { GQLSTORY_MODE, GQLTAG, GQLUSER_STATUS } from "coral-framework/schema";
 import CLASSES from "coral-stream/classes";
 import HTMLContent from "coral-stream/common/HTMLContent";
 import Timestamp from "coral-stream/common/Timestamp";
@@ -33,6 +33,8 @@ import MediaSectionContainer from "../../Comment/MediaSection";
 import ReactionButtonContainer from "../../Comment/ReactionButton";
 import { UsernameWithPopoverContainer } from "../../Comment/Username";
 import IgnoredTombstoneOrHideContainer from "../../IgnoredTombstoneOrHideContainer";
+
+import FeaturedBy from "./FeaturedBy";
 
 import styles from "./FeaturedCommentContainer.css";
 
@@ -72,6 +74,14 @@ const FeaturedCommentContainer: FunctionComponent<Props> = (props) => {
     [emitViewConversationEvent, comment.id, setCommentID]
   );
 
+  const featuringUser = comment.tags.find(
+    (tag) => tag.code === GQLTAG.FEATURED
+  )?.createdBy;
+
+  const gotoConvAriaLabelId = comment.author?.username
+    ? "comments-featured-gotoConversation-label-with-username"
+    : "comments-featured-gotoConversation-label-without-username";
+
   return (
     <IgnoredTombstoneOrHideContainer viewer={props.viewer} comment={comment}>
       <article
@@ -81,8 +91,8 @@ const FeaturedCommentContainer: FunctionComponent<Props> = (props) => {
       >
         <Localized
           id="comments-featured-label"
-          RelativeTime={<RelativeTime date={comment.createdAt} />}
-          $username={comment.author?.username || ""}
+          elems={{ RelativeTime: <RelativeTime date={comment.createdAt} /> }}
+          vars={{ username: comment.author?.username || "" }}
         >
           <Hidden id={`featuredComment-${comment.id}-label`}>
             Featured Comment from {comment.author?.username} {` `}
@@ -90,6 +100,9 @@ const FeaturedCommentContainer: FunctionComponent<Props> = (props) => {
           </Hidden>
         </Localized>
         <HorizontalGutter>
+          {settings.featuredBy && featuringUser?.username && (
+            <FeaturedBy username={featuringUser.username} />
+          )}
           {isRatingsAndReviews && comment.rating && (
             <StarRating rating={comment.rating} />
           )}
@@ -169,25 +182,31 @@ const FeaturedCommentContainer: FunctionComponent<Props> = (props) => {
               </Flex>
             )}
             <Flex alignItems="center">
-              <Button
-                className={cn(
-                  CLASSES.featuredComment.actionBar.goToConversation,
-                  styles.gotoConversation
-                )}
-                variant="flat"
-                fontSize="small"
-                color="none"
-                paddingSize="none"
-                onClick={onGotoConversation}
-                href={getURLWithCommentID(story.url, comment.id)}
+              <Localized
+                id={gotoConvAriaLabelId}
+                attrs={{ "aria-label": true }}
+                vars={{ username: comment.author?.username }}
               >
-                <Icon size="sm" className={styles.icon}>
-                  forum
-                </Icon>
-                <Localized id="comments-featured-gotoConversation">
-                  <span>Go to conversation</span>
-                </Localized>
-              </Button>
+                <Button
+                  className={cn(
+                    CLASSES.featuredComment.actionBar.goToConversation,
+                    styles.gotoConversation
+                  )}
+                  variant="flat"
+                  fontSize="small"
+                  color="none"
+                  paddingSize="none"
+                  onClick={onGotoConversation}
+                  href={getURLWithCommentID(story.url, comment.id)}
+                >
+                  <Icon size="sm" className={styles.icon}>
+                    forum
+                  </Icon>
+                  <Localized id="comments-featured-gotoConversation">
+                    <span>Go to conversation</span>
+                  </Localized>
+                </Button>
+              </Localized>
             </Flex>
           </Flex>
         </Flex>
@@ -243,6 +262,12 @@ const enhanced = withFragmentContainer<Props>({
           username
         }
       }
+      tags {
+        code
+        createdBy {
+          username
+        }
+      }
       rating
       body
       createdAt
@@ -257,6 +282,7 @@ const enhanced = withFragmentContainer<Props>({
   `,
   settings: graphql`
     fragment FeaturedCommentContainer_settings on Settings {
+      featuredBy
       ...ReactionButtonContainer_settings
       ...UserTagsContainer_settings
       ...MediaSectionContainer_settings
